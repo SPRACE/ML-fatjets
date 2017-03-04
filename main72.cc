@@ -26,7 +26,7 @@ using namespace Pythia8;
 int main() {
 
   // Number of events, generated and listed ones (for jets).
-  int nEvent    = 1000;
+  int nEvent    = 10000;
   int nListJets = 3;
 
   // Select common parameters for SlowJet and FastJet analyses.
@@ -43,7 +43,7 @@ int main() {
 
   // Process selection.
   pythia.readString("HardQCD:all = on");
-  pythia.readString("PhaseSpace:pTHatMin = 200.");
+  pythia.readString("PhaseSpace:pTHatMin = 300.");
 
   // No event record printout.
   pythia.readString("Next:numberShowInfo = 0");
@@ -67,7 +67,8 @@ int main() {
   std::vector <fastjet::PseudoJet> fjInputs;
 
   // Histograms.
-  TH1F* nJets = new TH1F("nJets","number of jets", 15, -0.5, 14.5);
+  TH1F* nJets  = new TH1F("nJets","number of jets", 15, -0.5, 14.5);
+  TH1F* nParts = new TH1F("nParts","number of particles", 200, -0.5, 199.5);
 
   // Begin event loop. Generate event. Skip if error.
   for (int iEvent = 0; iEvent < nEvent; ++iEvent) {
@@ -114,6 +115,10 @@ int main() {
     
     nJets->Fill(sortedJets.size());
 
+    for(size_t ii = 0; ii != sortedJets.size(); ++ii) {
+        nParts->Fill(sortedJets[ii].constituents().size());
+    }
+
     // List first few FastJet jets and some info about them.
     // Note: the final few columns are illustrative of what information
     // can be extracted, but does not exhaust the possibilities.
@@ -154,6 +159,7 @@ int main() {
 
   TFile* f = TFile::Open("file.root","RECREATE");
   nJets->Write();
+  nParts->Write();
   f->Close();
 
   // Done.
