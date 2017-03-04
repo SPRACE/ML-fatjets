@@ -6,7 +6,9 @@
 // This is a simple test program.
 // It compares SlowJet, FJcore and FastJet, showing that they
 // find the same jets.
-
+#include <iostream>
+#include <fstream>
+#include <string>
 #include "Pythia8/Pythia.h"
 
 // The FastJet3.h header enables automatic initialisation of
@@ -25,8 +27,11 @@ using namespace Pythia8;
 
 int main() {
 
+    // Separator
+    const std::string sep = "\t";
+
   // Number of events, generated and listed ones (for jets).
-  int nEvent    = 10000;
+  int nEvent    = 1000;
   int nListJets = 3;
 
   // Select common parameters for SlowJet and FastJet analyses.
@@ -70,6 +75,12 @@ int main() {
   TH1F* nJets  = new TH1F("nJets","number of jets", 15, -0.5, 14.5);
   TH1F* nParts = new TH1F("nParts","number of particles", 200, -0.5, 199.5);
 
+  // File
+  std::ofstream outFile;
+  outFile.open("outfile.txt");
+  outFile.precision(6);
+  outFile << std::scientific;
+  
   // Begin event loop. Generate event. Skip if error.
   for (int iEvent = 0; iEvent < nEvent; ++iEvent) {
     if (!pythia.next()) continue;
@@ -117,8 +128,27 @@ int main() {
 
     for(size_t ii = 0; ii != sortedJets.size(); ++ii) {
         nParts->Fill(sortedJets[ii].constituents().size());
+    
+        double jetPt = sortedJets[ii].perp();
+        if(jetPt > 300) {
+            outFile << "0" << sep << jetPt << sep;
+            size_t nParticles = sortedJets[ii].constituents().size();
+            // Loop over particles, but not more than 200.
+            for(size_t kk = 0; kk != nParticles and kk != 200; ++kk) {
+                double px =  sortedJets[ii].constituents().at(kk).px();
+                double py =  sortedJets[ii].constituents().at(kk).py();
+                double pz =  sortedJets[ii].constituents().at(kk).pz();
+                outFile << px/jetPt << sep << py/jetPt << sep << pz/jetPt << sep;
+            } 
+            // Pad with zeros
+            size_t nPads = (nParticles<200) ? (200-nParticles): 0;
+            for(size_t kk = 0; kk != nPads; ++kk) {
+                outFile << 0 << sep << 0 << sep << 0 << sep; 
+            }
+        outFile << std::endl;
+        }
+        
     }
-
     // List first few FastJet jets and some info about them.
     // Note: the final few columns are illustrative of what information
     // can be extracted, but does not exhaust the possibilities.
@@ -155,6 +185,7 @@ int main() {
   }
 
   // Statistics. Histograms.
+    outFile.close();
   pythia.stat();
 
   TFile* f = TFile::Open("file.root","RECREATE");
