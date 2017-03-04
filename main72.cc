@@ -32,7 +32,7 @@ int main() {
   // Select common parameters for SlowJet and FastJet analyses.
   int    power   = -1;     // -1 = anti-kT; 0 = C/A; 1 = kT.
   double R       = 0.8;    // Jet size.
-  double pTMin   = 5.0;    // Min jet pT.
+  double pTMin   = 30.0;    // Min jet pT.
   double etaMax  = 5.0;    // Pseudorapidity range of detector.
   int    select  = 2;      // Which particles are included?
   int    massSet = 2;      // Which mass are they assumed to have?
@@ -67,7 +67,7 @@ int main() {
   std::vector <fastjet::PseudoJet> fjInputs;
 
   // Histograms.
-  TH1F* nJets = new TH1F("nJets","number of jets", 100, -0.5, 99.5);
+  TH1F* nJets = new TH1F("nJets","number of jets", 15, -0.5, 14.5);
 
   // Begin event loop. Generate event. Skip if error.
   for (int iEvent = 0; iEvent < nEvent; ++iEvent) {
