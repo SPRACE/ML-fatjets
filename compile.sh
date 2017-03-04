@@ -1,0 +1,1 @@
+g++ main72.cc ../lib/libpythia8.a -o main72 -I./ -I../include -O2 -ansi -pedantic -W -Wall -Wshadow -fPIC -Wl,-rpath,../lib -ldl -L./ -Wl,-rpath,./ -lfastjet -L/Users/trtomei/root/lib -lCore -lRIO -lHist -pthread -std=c++11 -m64 -I/Users/trtomei/root/include
