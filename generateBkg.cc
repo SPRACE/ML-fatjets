@@ -27,7 +27,7 @@ int main()
     const std::string sep = "\t";
 
     // Number of events, generated and listed ones (for jets).
-    int nEvent    = 1000;
+    int nEvent    = 30000;
     int nListJets = 3;
 
     // Select common parameters for SlowJet and FastJet analyses.
