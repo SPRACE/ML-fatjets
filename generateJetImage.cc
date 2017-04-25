@@ -23,6 +23,29 @@
 
 using namespace Pythia8;
 
+void fillCalorimeterWithEvent(TH2* calorimeter, const Pythia8::Event& event, int select, double etaMax)
+{
+    // Begin FastJet analysis: extract particles from event record.
+        Vec4   pTemp;
+        double mTemp;
+        int nAnalyze = 0;
+        for (int i = 0; i < event.size(); ++i) if (event[i].isFinal()) {
+
+                // Require visible/charged particles inside detector.
+                if (select > 2 &&  event[i].isNeutral()) continue;
+                else if (select == 2 && !event[i].isVisible()) continue;
+                if (etaMax < 20. && abs(event[i].eta()) > etaMax) continue;
+
+                // Optionally modify mass and energy.
+                pTemp = event[i].p();
+                mTemp = event[i].m();
+
+                /// Add the particle to the calorimeter
+                calorimeter->Fill(pTemp.eta(),pTemp.phi(),pTemp.eT());
+                ++nAnalyze;
+        }
+}
+
 int main()
 {
 
@@ -35,7 +58,7 @@ int main()
 
     // Select common parameters for SlowJet and FastJet analyses.
     int    power   = -1;     // -1 = anti-kT; 0 = C/A; 1 = kT.
-    double R       = 0.4;    // Jet size.
+    double R       = 0.8;    // Jet size.
     double pTMin   = 30.0;    // Min jet pT.
     double etaMax  = 5.0;    // Pseudorapidity range of detector.
     int    select  = 2;      // Which particles are included?
@@ -83,32 +106,14 @@ int main()
     outFile.precision(6);
     outFile << std::scientific;
 
+    /// Factoring out "fill calorimeter with event" function.
+
     // Begin event loop. Generate event. Skip if error.
     for (int iEvent = 0; iEvent < nEvent; ++iEvent) {
         if (!pythia.next()) continue;
 
-
-        // Begin FastJet analysis: extract particles from event record.
-        Vec4   pTemp;
-        double mTemp;
-        int nAnalyze = 0;
-        for (int i = 0; i < event.size(); ++i) if (event[i].isFinal()) {
-
-                // Require visible/charged particles inside detector.
-                if (select > 2 &&  event[i].isNeutral()) continue;
-                else if (select == 2 && !event[i].isVisible()) continue;
-                if (etaMax < 20. && abs(event[i].eta()) > etaMax) continue;
-
-                // Optionally modify mass and energy.
-                pTemp = event[i].p();
-                mTemp = event[i].m();
-
-                /// Add the particle to the calorimeter
-                calorimeter->Fill(pTemp.eta(),pTemp.phi(),pTemp.eT());
-                ++nAnalyze;
-
-        }
-        
+        fillCalorimeterWithEvent(calorimeter,event,select,etaMax);
+                
         /// Transform calo towers back into particles
         std::vector <fastjet::PseudoJet> fjInputs;
         for(int nBinsX=1 ; nBinsX<=calorimeter->GetNbinsX() ; ++nBinsX ) {
