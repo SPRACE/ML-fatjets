@@ -53,7 +53,7 @@ int main()
     const std::string sep = "\t";
 
     // Number of events, generated and listed ones (for jets).
-    int nEvent    = 1;
+    int nEvent    = 180;
     int nEventPU = 0;
     int nListJets = 3;
 
@@ -123,6 +123,8 @@ int main()
 
     // Begin event loop. Generate event. Skip if error.
     for (int iEvent = 0; iEvent < nEvent; ++iEvent) {
+    
+        calorimeter->Reset();
         if (!pythia.next()) continue;
 
         /// Generate PU events
@@ -153,7 +155,7 @@ int main()
         calorimeter->Draw("COLZ");
         calorimeter->GetZaxis()->SetRangeUser(0.1,1000);
         cv->SetLogz(true);
-        cv->SaveAs("calorimeter.png");
+        //cv->SaveAs("calorimeter.png");
 
         /// Run Fastjet algorithm and sort jets in pT order.
         vector <fastjet::PseudoJet> inclusiveJets, sortedJets;
@@ -163,6 +165,7 @@ int main()
 
         nJets->Fill(sortedJets.size());
         
+        /// Find leading jet
         double jetPt = sortedJets[0].perp();
         if (jetPt < 300) continue;
         double etaJet =  sortedJets[0].eta();
