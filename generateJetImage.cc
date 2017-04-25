@@ -106,8 +106,11 @@ int main()
     // Histograms.
     TH1F *nJets  = new TH1F("nJets", "number of jets", 15, -0.5, 14.5);
     TH1F *nParts = new TH1F("nParts", "number of particles", 200, -0.5, 199.5);
+    int nEtaBins = 50;
+    int nPhiBins = 63;
     TH2D *calorimeter = new TH2D("calorimeter", "Calorimeter representation",
-                                50,-2.5,2.5,63,-3.14159,3.14159);
+                                nEtaBins,-2.5,2.5,
+                                nPhiBins,-3.14159,3.14159);
     TCanvas* cv = new TCanvas("cv","cv",600,600);
 
     // File
@@ -170,10 +173,33 @@ int main()
         calorimeter->GetBinXYZ(globalJetBin, jetEtaBin, jetPhiBin, jetZBin);
         cout << jetEtaBin << " " << jetPhiBin << endl;
         
+
+        /// Print only the jet towers around the jet
         /// Now here we have to be careful
         /// If we are at a border in eta, we have to stop
         /// If we are at a border in phi, we have to loop
+        int startingEta = jetEtaBin - 8;
+        int endingEta = jetEtaBin + 8;
+        int startingPhi = jetPhiBin - 8;
+        int endingPhi = jetPhiBin + 8;
+        for(int iEta = startingEta; iEta <= endingEta; ++ iEta) {
+            for(int iPhi = startingPhi; iPhi <= endingPhi; ++ iPhi) {
+                double content = 0;
+                int targetPhi = iPhi;
+                // Loop on eta
+                if (targetPhi < 1) {targetPhi += nPhiBins;}
+                if (targetPhi > nPhiBins) {targetPhi -= nPhiBins;}
+                content = calorimeter->GetBinContent(iEta,targetPhi,0);
+                // Stop on phi
+                if (iEta < 1 or iEta > nEtaBins) {content = 0;}
 
+                //cout << iEta << sep << iPhi << sep << content << endl;
+                outFile << content << sep;
+            }
+        }
+    outFile << endl;
+    } //Close event loop 
+       
 /*            
 
         for (size_t ii = 0; ii != sortedJets.size(); ++ii) {
@@ -198,7 +224,7 @@ int main()
                 outFile << std::endl;
             }
 */
-        }
+
         // List first few FastJet jets and some info about them.
         // Note: the final few columns are illustrative of what information
         // can be extracted, but does not exhaust the possibilities.
@@ -231,11 +257,9 @@ int main()
                  << "---------------------------------" << endl;
         }*/
 
-        // End of event loop.
-    
-
     // Statistics. Histograms.
     pythia.stat();
+    outFile.close();
 
     TFile *f = TFile::Open("file.root", "RECREATE");
     nJets->Write();
