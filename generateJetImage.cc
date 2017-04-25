@@ -14,7 +14,7 @@
 // See the extensive comments in the header file for further details
 // and examples.
 #include "Pythia8Plugins/FastJet3.h"
-//#include "fastjet/ClusterSequence.hh"
+#include "fastjet/tools/Filter.hh"
 
 #include "TFile.h"
 #include "TH1F.h"
@@ -24,6 +24,7 @@
 #include "TMath.h"
 #include "TRandom3.h"
 #include "TString.h"
+#include "TVector3.h"
 
 using namespace Pythia8;
 
@@ -50,6 +51,137 @@ void fillCalorimeterWithEvent(TH2* calorimeter, const Pythia8::Event& event, int
         }
 }
 
+void zeroCalorimeterAroundJet(TH2* calorimeter, int jetEtaBin, int jetPhiBin, int RinTowers, int nEtaBins, int nPhiBins)
+{
+        /// Now here we have to be careful
+        /// If we are at a border in eta, we have to stop
+        /// If we are at a border in phi, we have to loop
+        int startingEta = jetEtaBin - RinTowers;
+        int endingEta = jetEtaBin + RinTowers;
+        int startingPhi = jetPhiBin - RinTowers;
+        int endingPhi = jetPhiBin + RinTowers;
+        for(int iEta = startingEta; iEta <= endingEta; ++ iEta) {
+            for(int iPhi = startingPhi; iPhi <= endingPhi; ++ iPhi) {
+                double content = 0;
+                int targetPhi = iPhi;
+                // Stop on eta
+                if (iEta < 1 or iEta > nEtaBins) {content = 0;}
+                // Loop on phi
+                if (targetPhi < 1) {targetPhi += nPhiBins;}
+                if (targetPhi > nPhiBins) {targetPhi -= nPhiBins;}
+
+                /// Zero the calorimeter
+                calorimeter->SetBinContent(iEta,targetPhi,0);
+             }
+        }
+}
+
+void fillCalorimeterWithJet(TH2* calorimeter, const fastjet::PseudoJet& jet)
+{
+    for (int i=0; i!=jet.constituents().size(); ++i) {
+        calorimeter->Fill(jet.constituents().at(i).eta(),
+                            jet.constituents().at(i).phi_std(),
+                            jet.constituents().at(i).Et());
+    }
+} 
+
+void fillCalorimeterWithParticles(TH2* calorimeter, const std::vector<TVector3>& particles)
+{
+    for (int i=0; i!=particles.size(); ++i) {
+        calorimeter->Fill(particles.at(i).X(),
+                            particles.at(i).Y(),
+                            particles.at(i).Z());
+    }
+} 
+
+void printConstituents(const fastjet::PseudoJet& jet)
+{
+    for (int i=0; i!=jet.constituents().size(); ++i) {
+        cout << jet.constituents().at(i).eta() << " "
+        << jet.constituents().at(i).phi_std() << " " 
+        << jet.constituents().at(i).Et() << " " << endl;
+    }
+}
+
+void saveCalorimeterImage(TH2* calorimeter, const char* name, double rangeMin = 0.1, double rangeMax = 1000)
+{
+        TCanvas cv("cv","cv",600,600);
+        TStyle st;
+        st.SetPalette(kLightTemperature);            
+        st.SetOptStat(0);
+        st.cd();            
+        calorimeter->Draw("COLZ");
+        if(rangeMin > 0 and rangeMax > 0)
+            calorimeter->GetZaxis()->SetRangeUser(rangeMin,rangeMax);
+        cv.SetLogz(true);
+        cv.SetRightMargin(0.15);
+        cv.SaveAs(name);
+}
+
+std::vector<TVector3> convertJetToParticles (const fastjet::PseudoJet& jet) 
+{
+    std::vector<TVector3> result;
+    for(int i=0; i!= jet.constituents().size(); ++i) {
+        result.push_back(TVector3(
+            jet.constituents().at(i).eta(),
+            jet.constituents().at(i).phi_std(),
+            jet.constituents().at(i).Et()
+        ));
+    }
+    return result;
+}
+
+void translateParticles(std::vector<TVector3>& particles, double x, double y) 
+{
+    /// Careful, still for this translation we need to make sure that phi is cyclical.
+    /// After this we don't need to care anymore!
+    for (int i=0; i!=particles.size(); ++i) {
+        particles.at(i).SetXYZ(TVector2::Phi_mpi_pi(particles.at(i).X()+x),
+                                particles.at(i).Y()+y,
+                                particles.at(i).Z());
+    }
+    return;
+}
+
+void rotateParticles(std::vector<TVector3>& particles, double phi) 
+{
+    for (int i=0; i!=particles.size(); ++i) {
+        particles.at(i).RotateZ(phi);
+    }
+    return;
+}
+
+void reflectParticlesIfNeeded(std::vector<TVector3>& particles) 
+{
+    double rightSideEt = 0;
+    double leftSideEt = 0;
+    for (int i=0; i!=particles.size(); ++i) {
+        if(particles.at(i).X() >= 0) rightSideEt += particles.at(i).Z();
+        else leftSideEt += particles.at(i).Z();
+    }
+    if(leftSideEt > rightSideEt) {
+        for (int i=0; i!=particles.size(); ++i) {
+            particles.at(i).SetX(-particles.at(i).X());
+        }
+    }
+    return;
+}
+
+void normalizeParticles(std::vector<TVector3>& particles)
+{
+    double sumEtSquared = 0;
+    double norm = 0;
+    for (int i=0; i!=particles.size(); ++i) {
+        sumEtSquared += particles.at(i).Z()*particles.at(i).Z();
+    }
+    //cout << "sumEtSquared = " << sumEtSquared << endl;
+    for (int i=0; i!=particles.size(); ++i) {
+        particles.at(i).SetZ(particles.at(i).Z()/sqrt(sumEtSquared));
+        norm += particles.at(i).Z()*particles.at(i).Z();
+    }
+    //cout << "sumEtSquared = " << norm << endl;
+}
+
 int main()
 {
 
@@ -57,7 +189,7 @@ int main()
     const std::string sep = "\t";
 
     // Number of events, generated and listed ones (for jets).
-    int nEvent    = 1;
+    int nEvent    = 19;
     int nEventPU  = 0;
     int nListJets = 3;
 
@@ -66,8 +198,8 @@ int main()
     double meanPU = 30.0;
     
     // Select common parameters for SlowJet and FastJet analyses.
-    int    power   = -1;     // -1 = anti-kT; 0 = C/A; 1 = kT.
-    double R       = 0.8;    // Jet size.
+    int    power   = 0;     // -1 = anti-kT; 0 = C/A; 1 = kT.
+    double R       = 1.2;    // Jet size.
     double pTMin   = 30.0;    // Min jet pT.
     double etaMax  = 5.0;    // Pseudorapidity range of detector.
     int    select  = 2;      // Which particles are included?
@@ -133,8 +265,10 @@ int main()
                                 nEtaBins,minCaloEta,maxCaloEta,
                                 nPhiBins,-3.14159,3.14159);
     int RinTowers = TMath::Nint(R/((maxCaloEta - minCaloEta)/nEtaBins));
-    cout << "R in towers = " << RinTowers << endl;
-    TCanvas* cv = new TCanvas("cv","cv",600,600);
+    //cout << "R in towers = " << RinTowers << endl;
+    TH2D *caloJet = new TH2D("caloJet", "Calorimeter jet representation",
+                                2*RinTowers+1,-0.05-R,R+0.05,
+                                2*RinTowers+1,-0.05-R,R+0.05);
 
     // File
     std::ofstream outFile;
@@ -148,13 +282,14 @@ int main()
     for (int iEvent = 0; iEvent < nEvent; ++iEvent) {
     
         calorimeter->Reset();
+        caloJet->Reset();
         if (!pythia.next()) continue;
 
         /// Generate main event
         fillCalorimeterWithEvent(calorimeter,event,select,etaMax);
         
         nEventPU = rng.Poisson(meanPU);
-        cout << "Adding PU = " << nEventPU << endl;
+        //cout << "Adding PU = " << nEventPU << endl;
         /// Generate PU events
         for (int iEventPU = 0; iEventPU != nEventPU; ++iEventPU) {
             if (!pythiaPU.next()) continue;
@@ -171,18 +306,12 @@ int main()
                 Double_t sumEt     = calorimeter->GetBinContent(nBinsX,nBinsY);
                 fji.reset_PtYPhiM(sumEt,etaCenter,phiCenter);
                 fjInputs.push_back(fji);
+                //cout << etaCenter << " " << phiCenter << endl;
             }
         }             
         //cout << fjInputs.size() << endl;
 
-        TStyle st;
-        st.SetPalette(kLightTemperature);            
-        st.SetOptStat(0);
-        st.cd();            
-        calorimeter->Draw("COLZ");
-        calorimeter->GetZaxis()->SetRangeUser(0.1,1000);
-        cv->SetLogz(true);
-        //cv->SaveAs("calorimeter.png");
+
 
         /// Run Fastjet algorithm and sort jets in pT order.
         vector <fastjet::PseudoJet> inclusiveJets, sortedJets;
@@ -194,40 +323,79 @@ int main()
         
         /// Find leading jet
         double jetPt = sortedJets[0].perp();
+        double jetMass = sortedJets[0].m();
         if (jetPt < 300) continue;
-        double etaJet =  sortedJets[0].eta();
-        double phiJet =  sortedJets[0].phi_std();
-        cout << etaJet << " " << phiJet << endl;
+        //cout << "jet mass = " << jetMass << endl;
+        //cout << "Found pretrim constituents:" << sortedJets[0].constituents().size() << endl;   
+             
+        /// 1) Do the noise reduction with TRIMMING
+        fastjet::Filter trimmer (fastjet::JetDefinition(fastjet::kt_algorithm, 0.3), 
+                                 fastjet::SelectorPtFractionMin(0.05));
+        fastjet::PseudoJet trimmedJet = trimmer(sortedJets[0]);
+        //cout << "jet mass = " << trimmedJet.m() << endl;
+
+        assert(trimmedJet.has_structure_of<fastjet::Filter>());
+        const fastjet::Filter::StructureType & fj_struct = trimmedJet.structure_of<fastjet::Filter>();
+        
+        /// 2) Doing the trimming automatically defines the points of interest as the subjets
+        int nSubjets = trimmedJet.pieces().size();
+        //cout << "Found subjets: " << nSubjets << endl;
+        //cout << "Found posttrim constituents:" << trimmedJet.constituents().size() << endl;
+        //printConstituents(sortedJets[0]);
+
+        /// Found the position of the trimmed jet in the calorimeter, in order to zero it
+        /// out and substitute for the trimmed constituents later
+        double etaJet =  trimmedJet.eta();
+        double phiJet =  trimmedJet.phi_std();
         double globalJetBin = calorimeter->FindFixBin(etaJet,phiJet);
         int jetEtaBin; int jetPhiBin; int jetZBin;
         calorimeter->GetBinXYZ(globalJetBin, jetEtaBin, jetPhiBin, jetZBin);
-        cout << jetEtaBin << " " << jetPhiBin << endl;
+        //cout << "Jet centroid: " << etaJet << " " << phiJet << endl;
+        for(int i=0; i!= nSubjets; ++i) {
+            //cout << "Points of interest: " << trimmedJet.pieces().at(i).eta() << " " << trimmedJet.pieces().at(i).phi_std() << " " << trimmedJet.pieces().at(i).Et() << endl;
+                                        }
+
         
+        /// Convert this to a vector of TVector3, with X = eta, Y = phi_std, Z = Et
+        std::vector<TVector3> particles = convertJetToParticles(trimmedJet);
+        
+        /// 3) Alignment
 
-        /// Print only the jet towers around the jet
-        /// Now here we have to be careful
-        /// If we are at a border in eta, we have to stop
-        /// If we are at a border in phi, we have to loop
-        int startingEta = jetEtaBin - RinTowers;
-        int endingEta = jetEtaBin + RinTowers;
-        int startingPhi = jetPhiBin - RinTowers;
-        int endingPhi = jetPhiBin + RinTowers;
-        for(int iEta = startingEta; iEta <= endingEta; ++ iEta) {
-            for(int iPhi = startingPhi; iPhi <= endingPhi; ++ iPhi) {
-                double content = 0;
-                int targetPhi = iPhi;
-                // Loop on eta
-                if (targetPhi < 1) {targetPhi += nPhiBins;}
-                if (targetPhi > nPhiBins) {targetPhi -= nPhiBins;}
-                content = calorimeter->GetBinContent(iEta,targetPhi,0);
-                // Stop on phi
-                if (iEta < 1 or iEta > nEtaBins) {content = 0;}
+        /// Translation, such that the jet is centered in 0,0 in eta,phi
+        translateParticles(particles,-etaJet,-phiJet);
+        /// Rotation, such that if there are at least two subjets, the two more energetic ones are vertical
 
-                //cout << iEta << sep << iPhi << sep << content << endl;
-                outFile << content << sep;
-            }
+        double phiRotation = 0;
+        if(nSubjets > 1) {
+            /// Translate the two subjets as well to not make mistakes
+            TVector2 v1(trimmedJet.pieces().at(0).eta()-etaJet,
+                        TVector2::Phi_mpi_pi(trimmedJet.pieces().at(0).phi_std()-phiJet));
+            TVector2 v2(trimmedJet.pieces().at(1).eta()-etaJet,
+                        TVector2::Phi_mpi_pi(trimmedJet.pieces().at(1).phi_std()-phiJet));
+            phiRotation = TVector2::Phi_mpi_pi(v2.Phi()-v1.Phi());
         }
-    outFile << endl;
+        rotateParticles(particles,-phiRotation);
+        /// Reflection, such that the eta > 0 side has more sumEt than the eta < 0 side
+        reflectParticlesIfNeeded(particles);
+        
+        /// 4) Normalization, such that sum of square of calo towers is one.
+        normalizeParticles(particles);
+
+        /// 5) Binning should be done by running the program with given cuts
+        if(false) continue;
+
+        /// Fill a mini-calorimeter (just the jet) with the particles
+        fillCalorimeterWithParticles(caloJet,particles);
+        
+        /// Save nice plots
+        if(true) {
+            saveCalorimeterImage(caloJet,"caloJet.png",1E-4,1);
+            saveCalorimeterImage(calorimeter,"calorimeter.png");
+            zeroCalorimeterAroundJet(calorimeter, jetEtaBin, jetPhiBin, RinTowers, nEtaBins, nPhiBins);
+            saveCalorimeterImage(calorimeter,"calorimeter_hole.png");
+            fillCalorimeterWithJet(calorimeter,trimmedJet);
+            saveCalorimeterImage(calorimeter,"calorimeter_trimmed.png");
+        }
     } //Close event loop 
        
 
