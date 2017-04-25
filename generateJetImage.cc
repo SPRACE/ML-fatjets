@@ -14,12 +14,16 @@
 // See the extensive comments in the header file for further details
 // and examples.
 #include "Pythia8Plugins/FastJet3.h"
+//#include "fastjet/ClusterSequence.hh"
 
 #include "TFile.h"
 #include "TH1F.h"
 #include "TH2D.h"
 #include "TCanvas.h"
 #include "TStyle.h"
+#include "TMath.h"
+#include "TRandom3.h"
+#include "TString.h"
 
 using namespace Pythia8;
 
@@ -53,10 +57,14 @@ int main()
     const std::string sep = "\t";
 
     // Number of events, generated and listed ones (for jets).
-    int nEvent    = 180;
-    int nEventPU = 0;
+    int nEvent    = 1;
+    int nEventPU  = 0;
     int nListJets = 3;
 
+    // LHC parameters
+    double sqrtsInGeV = 13000.0;
+    double meanPU = 30.0;
+    
     // Select common parameters for SlowJet and FastJet analyses.
     int    power   = -1;     // -1 = anti-kT; 0 = C/A; 1 = kT.
     double R       = 0.8;    // Jet size.
@@ -66,12 +74,14 @@ int main()
     int    massSet = 2;      // Which mass are they assumed to have?
 
     // Generator. Shorthand for event.
-    Pythia pythia;
-    Pythia pythiaPU;
+    Pythia pythia("../share/Pythia8/xmldoc",false);
+    Pythia pythiaPU("../share/Pythia8/xmldoc",false);
 
     Event &event = pythia.event;
     Event &eventPU = pythiaPU.event;
 
+    TRandom3 rng(5713919);
+    
     // Process selection.
     pythia.readString("HardQCD:all = on");
     pythiaPU.readString("SoftQCD:nonDiffractive = on");
@@ -85,10 +95,19 @@ int main()
     pythiaPU.readString("Next:numberShowProcess = 0");
     pythiaPU.readString("Next:numberShowEvent = 0");
 
+    // Very very quiet.
+    pythia.readString("Init:showProcesses = off");
+    pythia.readString("Init:showMultipartonInteractions = off");
+    pythiaPU.readString("Init:showProcesses = off");
+    pythiaPU.readString("Init:showMultipartonInteractions = off");
+    std::ofstream* nullStream;
+    fastjet::ClusterSequence::set_fastjet_banner_stream(nullStream);
+    
     // LHC initialization.
-    pythia.readString("Beams:eCM = 13000.");
+    TString LHCinit = TString("Beams:eCM = ")+Form("%g",sqrtsInGeV);
+    pythia.readString(LHCinit.Data());
     pythia.init();
-    pythiaPU.readString("Beams:eCM = 13000.");
+    pythiaPU.readString(LHCinit.Data());
     pythiaPU.init();
 
     // Set up FastJet jet finder.
@@ -107,10 +126,14 @@ int main()
     TH1F *nJets  = new TH1F("nJets", "number of jets", 15, -0.5, 14.5);
     TH1F *nParts = new TH1F("nParts", "number of particles", 200, -0.5, 199.5);
     int nEtaBins = 50;
+    double maxCaloEta = 2.5;
+    double minCaloEta = -2.5;
     int nPhiBins = 63;
     TH2D *calorimeter = new TH2D("calorimeter", "Calorimeter representation",
-                                nEtaBins,-2.5,2.5,
+                                nEtaBins,minCaloEta,maxCaloEta,
                                 nPhiBins,-3.14159,3.14159);
+    int RinTowers = TMath::Nint(R/((maxCaloEta - minCaloEta)/nEtaBins));
+    cout << "R in towers = " << RinTowers << endl;
     TCanvas* cv = new TCanvas("cv","cv",600,600);
 
     // File
@@ -127,9 +150,13 @@ int main()
         calorimeter->Reset();
         if (!pythia.next()) continue;
 
-        /// Generate PU events
+        /// Generate main event
         fillCalorimeterWithEvent(calorimeter,event,select,etaMax);
-        for (int iEventPU = 0; iEventPU < nEventPU; ++iEventPU) {
+        
+        nEventPU = rng.Poisson(meanPU);
+        cout << "Adding PU = " << nEventPU << endl;
+        /// Generate PU events
+        for (int iEventPU = 0; iEventPU != nEventPU; ++iEventPU) {
             if (!pythiaPU.next()) continue;
             fillCalorimeterWithEvent(calorimeter,eventPU,select,etaMax);
         }   
@@ -181,10 +208,10 @@ int main()
         /// Now here we have to be careful
         /// If we are at a border in eta, we have to stop
         /// If we are at a border in phi, we have to loop
-        int startingEta = jetEtaBin - 8;
-        int endingEta = jetEtaBin + 8;
-        int startingPhi = jetPhiBin - 8;
-        int endingPhi = jetPhiBin + 8;
+        int startingEta = jetEtaBin - RinTowers;
+        int endingEta = jetEtaBin + RinTowers;
+        int startingPhi = jetPhiBin - RinTowers;
+        int endingPhi = jetPhiBin + RinTowers;
         for(int iEta = startingEta; iEta <= endingEta; ++ iEta) {
             for(int iPhi = startingPhi; iPhi <= endingPhi; ++ iPhi) {
                 double content = 0;
@@ -203,65 +230,9 @@ int main()
     outFile << endl;
     } //Close event loop 
        
-/*            
-
-        for (size_t ii = 0; ii != sortedJets.size(); ++ii) {
-            nParts->Fill(sortedJets[ii].constituents().size());
-
-            double jetPt = sortedJets[ii].perp();
-            if (jetPt > 300) {
-                outFile << "0" << sep << jetPt << sep;
-                size_t nParticles = sortedJets[ii].constituents().size();
-                // Loop over particles, but not more than 200.
-                for (size_t kk = 0; kk != nParticles and kk != 200; ++kk) {
-                    double px =  sortedJets[ii].constituents().at(kk).px();
-                    double py =  sortedJets[ii].constituents().at(kk).py();
-                    double pz =  sortedJets[ii].constituents().at(kk).pz();
-                    outFile << px / jetPt << sep << py / jetPt << sep << pz / jetPt << sep;
-                }
-                // Pad with zeros
-                size_t nPads = (nParticles < 200) ? (200 - nParticles) : 0;
-                for (size_t kk = 0; kk != nPads; ++kk) {
-                    outFile << 0 << sep << 0 << sep << 0 << sep;
-                }
-                outFile << std::endl;
-            }
-*/
-
-        // List first few FastJet jets and some info about them.
-        // Note: the final few columns are illustrative of what information
-        // can be extracted, but does not exhaust the possibilities.
-        /*if (iEvent < nListJets) {
-            cout << "\n --------  FastJet jets, p = " << setw(2) << power
-                 << "  --------------------------------------------------\n\n "
-                 << "  i         pT        y      phi  mult chgmult photons"
-                 << "      hardest  pT in neutral " << endl
-                 << "                                                       "
-                 << "  constituent        hadrons " << endl;
-            for (int i = 0; i < int(sortedJets.size()); ++i) {
-                vector<fastjet::PseudoJet> constituents
-                    = sortedJets[i].constituents();
-                fastjet::PseudoJet hardest
-                    = fastjet::SelectorNHardest(1)(constituents)[0];
-                vector<fastjet::PseudoJet> neutral_hadrons
-                    = (fastjet::SelectorIsHadron()
-                       && fastjet::SelectorIsNeutral())(constituents);
-                double neutral_hadrons_pt = join(neutral_hadrons).perp();
-                cout << setw(4) << i << fixed << setprecision(3) << setw(11)
-                     << sortedJets[i].perp() << setw(9)  << sortedJets[i].rap()
-                     << setw(9) << sortedJets[i].phi_std()
-                     << setw(6) << constituents.size()
-                     << setw(8) << fastjet::SelectorIsCharged().count(constituents)
-                     << setw(8) << fastjet::SelectorId(22).count(constituents)
-                     << setw(13) << hardest.user_info<Particle>().name()
-                     << "     " << setw(10) << neutral_hadrons_pt << endl;
-            }
-            cout << "\n --------  End FastJet Listing  ------------------"
-                 << "---------------------------------" << endl;
-        }*/
 
     // Statistics. Histograms.
-    pythia.stat();
+    //pythia.stat();
     outFile.close();
 
     TFile *f = TFile::Open("file.root", "RECREATE");
