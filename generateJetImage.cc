@@ -54,6 +54,7 @@ int main()
 
     // Number of events, generated and listed ones (for jets).
     int nEvent    = 1;
+    int nEventPU = 0;
     int nListJets = 3;
 
     // Select common parameters for SlowJet and FastJet analyses.
@@ -66,20 +67,29 @@ int main()
 
     // Generator. Shorthand for event.
     Pythia pythia;
+    Pythia pythiaPU;
+
     Event &event = pythia.event;
+    Event &eventPU = pythiaPU.event;
 
     // Process selection.
     pythia.readString("HardQCD:all = on");
+    pythiaPU.readString("SoftQCD:nonDiffractive = on");
     pythia.readString("PhaseSpace:pTHatMin = 300.");
 
     // No event record printout.
     pythia.readString("Next:numberShowInfo = 0");
     pythia.readString("Next:numberShowProcess = 0");
     pythia.readString("Next:numberShowEvent = 0");
+    pythiaPU.readString("Next:numberShowInfo = 0");
+    pythiaPU.readString("Next:numberShowProcess = 0");
+    pythiaPU.readString("Next:numberShowEvent = 0");
 
     // LHC initialization.
     pythia.readString("Beams:eCM = 13000.");
     pythia.init();
+    pythiaPU.readString("Beams:eCM = 13000.");
+    pythiaPU.init();
 
     // Set up FastJet jet finder.
     //   one can use either explicitly use antikt, cambridge, etc., or
@@ -112,8 +122,13 @@ int main()
     for (int iEvent = 0; iEvent < nEvent; ++iEvent) {
         if (!pythia.next()) continue;
 
+        /// Generate PU events
         fillCalorimeterWithEvent(calorimeter,event,select,etaMax);
-                
+        for (int iEventPU = 0; iEventPU < nEventPU; ++iEventPU) {
+            if (!pythiaPU.next()) continue;
+            fillCalorimeterWithEvent(calorimeter,eventPU,select,etaMax);
+        }   
+                    
         /// Transform calo towers back into particles
         std::vector <fastjet::PseudoJet> fjInputs;
         for(int nBinsX=1 ; nBinsX<=calorimeter->GetNbinsX() ; ++nBinsX ) {
@@ -133,6 +148,8 @@ int main()
         st.SetOptStat(0);
         st.cd();            
         calorimeter->Draw("COLZ");
+        calorimeter->GetZaxis()->SetRangeUser(0.1,1000);
+        cv->SetLogz(true);
         cv->SaveAs("calorimeter.png");
 
         /// Run Fastjet algorithm and sort jets in pT order.
