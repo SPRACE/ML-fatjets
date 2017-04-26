@@ -233,7 +233,7 @@ int main()
     pythia.readString("Init:showMultipartonInteractions = off");
     pythiaPU.readString("Init:showProcesses = off");
     pythiaPU.readString("Init:showMultipartonInteractions = off");
-    std::ofstream* nullStream;
+    std::ofstream* nullStream = 0;
     fastjet::ClusterSequence::set_fastjet_banner_stream(nullStream);
     
     // LHC initialization.
