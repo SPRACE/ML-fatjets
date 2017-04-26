@@ -189,7 +189,7 @@ int main()
     const std::string sep = "\t";
 
     // Number of events, generated and listed ones (for jets).
-    int nEvent    = 100;
+    int nEvent    = 22000;
     int nEventPU  = 30;
     int nListJets = 3;
 
@@ -217,7 +217,8 @@ int main()
     // Process selection.
     pythia.readString("HardQCD:all = on");
     pythiaPU.readString("SoftQCD:nonDiffractive = on");
-    pythia.readString("PhaseSpace:pTHatMin = 300.");
+    pythia.readString("PhaseSpace:pTHatMin = 150.");
+    pythia.readString("PhaseSpace:pTHatMax = 300.");
 
     // No event record printout.
     pythia.readString("Next:numberShowInfo = 0");
@@ -327,11 +328,13 @@ int main()
         sortedJets    = sorted_by_pt(inclusiveJets);
 
         nJets->Fill(sortedJets.size());
-        
+
+      
         /// Find leading jet
         double jetPt = sortedJets[0].perp();
-        double jetMass = sortedJets[0].m();
-        if (jetPt < 300) continue;
+        if (jetPt < 200) continue;
+        if (jetPt > 250) continue;
+
         //cout << "jet mass = " << jetMass << endl;
         //cout << "Found pretrim constituents:" << sortedJets[0].constituents().size() << endl;   
              
@@ -339,9 +342,12 @@ int main()
         fastjet::Filter trimmer (fastjet::JetDefinition(fastjet::kt_algorithm, 0.3), 
                                  fastjet::SelectorPtFractionMin(0.05));
         fastjet::PseudoJet trimmedJet = trimmer(sortedJets[0]);
-        //cout << "jet mass = " << trimmedJet.m() << endl;
-
         assert(trimmedJet.has_structure_of<fastjet::Filter>());
+
+        double jetMass = trimmedJet.m();
+        if(jetMass < 65) continue;  
+        if(jetMass > 95) continue;  
+
         const fastjet::Filter::StructureType & fj_struct = trimmedJet.structure_of<fastjet::Filter>();
         
         /// 2) Doing the trimming automatically defines the points of interest as the subjets
@@ -387,9 +393,6 @@ int main()
         
         /// 4) Normalization, such that sum of square of calo towers is one.
         normalizeParticles(particles);
-
-        /// 5) Binning should be done by running the program with given cuts
-        if(false) continue;
 
         /// Fill a mini-calorimeter (just the jet) with the particles
         fillCalorimeterWithParticles(caloJet,particles);
