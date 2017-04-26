@@ -4,6 +4,8 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <cstdlib>
+#include "optionparser.h"
 #include "Pythia8/Pythia.h"
 
 // The FastJet3.h header enables automatic initialisation of
@@ -23,8 +25,8 @@
 #include "TStyle.h"
 #include "TMath.h"
 #include "TRandom3.h"
-#include "TString.h"
 #include "TVector3.h"
+#include "TString.h"
 
 using namespace Pythia8;
 
@@ -182,25 +184,102 @@ void normalizeParticles(std::vector<TVector3>& particles)
     //cout << "sumEtSquared = " << norm << endl;
 }
 
-int main()
+int main(int argc, char* argv[])
 {
 
+    struct Arg: public option::Arg
+{
+  static void printError(const char* msg1, const option::Option& opt, const char* msg2)
+  {
+    fprintf(stderr, "ERROR: %s", msg1);
+    fwrite(opt.name, opt.namelen, 1, stderr);
+    fprintf(stderr, "%s", msg2);
+  }
+  static option::ArgStatus Unknown(const option::Option& option, bool msg)
+  {
+    if (msg) printError("Unknown option '", option, "'\n");
+    return option::ARG_ILLEGAL;
+  }
+  static option::ArgStatus Required(const option::Option& option, bool msg)
+  {
+    if (option.arg != 0)
+      return option::ARG_OK;
+    if (msg) printError("Option '", option, "' requires an argument\n");
+    return option::ARG_ILLEGAL;
+  }
+  static option::ArgStatus NonEmpty(const option::Option& option, bool msg)
+  {
+    if (option.arg != 0 && option.arg[0] != 0)
+      return option::ARG_OK;
+    if (msg) printError("Option '", option, "' requires a non-empty argument\n");
+    return option::ARG_ILLEGAL;
+  }
+  static option::ArgStatus Numeric(const option::Option& option, bool msg)
+  {
+    char* endptr = 0;
+    if (option.arg != 0 && strtol(option.arg, &endptr, 10)){};
+    if (endptr != option.arg && *endptr == 0)
+      return option::ARG_OK;
+    if (msg) printError("Option '", option, "' requires a numeric argument\n");
+    return option::ARG_ILLEGAL;
+  }
+};
+
+    enum  optionIndex { UNKNOWN, OUTFNAME, NUMEVENTS, AVERAGEPU, SQRTS, MINJMASS, MAXJMASS, MINJETPT, MAXJETPT };
+    const option::Descriptor usage[] =
+        {
+            {UNKNOWN,  0,"" , ""    ,option::Arg::None, "USAGE: generateJetImage [options]\n\n"
+                                                         "Options:" },
+            {OUTFNAME ,0,"n" , "outFileName",Arg::NonEmpty, " --outFileName \tOutput file name" },
+            {NUMEVENTS,0,"n" , "numEvents",Arg::NonEmpty, " --numEvents, -n \tNumber of tried events" },
+            {AVERAGEPU,0,""  , "averagePU",Arg::NonEmpty, " --averagePU \tAverage PU." },
+            {SQRTS,    0,""  , "sqrts"    ,Arg::NonEmpty, " --sqrts \tCenter of mass energy in GeV"},
+            {MINJMASS, 0,""  , "minJetMass"    ,Arg::NonEmpty, " --minJetMass \tMin jet mass in GeV"},
+            {MAXJMASS, 0,""  , "maxJetMass"    ,Arg::NonEmpty, " --maxJetMass \tMax jet mass in GeV"},
+            {MINJETPT, 0,""  , "minJetPt"    ,Arg::NonEmpty, " --minJetPt \tMin jet mass in GeV"},
+            {MAXJETPT, 0,""  , "maxJetPt"    ,Arg::NonEmpty, " --maxJetPt \tMax jet mass in GeV"},
+            {0,0,0,0,0,0}
+        };
+    
+    /// Parsing the options
+    argc-=(argc>0); argv+=(argc>0); // skip program name argv[0] if present
+    option::Stats  stats(usage, argc, argv);
+    option::Option options[stats.options_max], buffer[stats.buffer_max];
+    option::Parser parse(usage, argc, argv, options, buffer);
+    
+    if (parse.error()) return 1;
+    if (options[UNKNOWN]) {
+        option::printUsage(std::cout, usage);
+        return 0;
+    }
+    
     // Separator
     const std::string sep = "\t";
 
-    // Number of events, generated and listed ones (for jets).
-    int nEvent    = 22000;
-    int nEventPU  = 30;
+    // Basic run parameters
+    int nEvent    = 1000;
+    int nEventPU  = 0;
     int nListJets = 3;
+    string outFileName = "output.txt";
 
     // LHC parameters
     double sqrtsInGeV = 13000.0;
-    double meanPU = 30.0;
+    double meanPU = 0.0;
     
-    double _minJetPt = 200;
-    double _maxJetPt = 250;
     double _minJetMass = 65;
     double _maxJetMass = 95;
+    double _minJetPt = 200;
+    double _maxJetPt = 250;
+    
+
+    if(options[OUTFNAME]) outFileName = options[OUTFNAME].arg;
+    if(options[NUMEVENTS]) nEvent = atof(options[NUMEVENTS].arg);
+    if(options[AVERAGEPU]) meanPU = atof(options[AVERAGEPU].arg);
+    if(options[SQRTS]) sqrtsInGeV = atof(options[SQRTS].arg);
+    if(options[MINJMASS]) _minJetMass = atof(options[MINJMASS].arg);
+    if(options[MAXJMASS]) _maxJetMass = atof(options[MAXJMASS].arg);
+    if(options[MINJETPT]) _minJetPt = atof(options[MINJETPT].arg);
+    if(options[MAXJETPT]) _maxJetPt = atof(options[MAXJETPT].arg);
     
     // Select jet finding parameters.
     int    power   = 0;     // -1 = anti-kT; 0 = C/A; 1 = kT.
@@ -222,8 +301,8 @@ int main()
     // Process selection.
     pythia.readString("HardQCD:all = on");
     pythiaPU.readString("SoftQCD:nonDiffractive = on");
-    pythia.readString("PhaseSpace:pTHatMin = 150.");
-    pythia.readString("PhaseSpace:pTHatMax = 300.");
+    pythia.readString((TString("PhaseSpace:pTHatMin = ") + TString::Format("%g",_minJetPt-50)).Data());
+    pythia.readString((TString("PhaseSpace:pTHatMax = ") + TString::Format("%g",_maxJetPt+50)).Data());
 
     // No event record printout.
     pythia.readString("Next:numberShowInfo = 0");
@@ -242,10 +321,11 @@ int main()
     fastjet::ClusterSequence::set_fastjet_banner_stream(nullStream);
     
     // LHC initialization.
-    TString LHCinit = TString("Beams:eCM = ")+Form("%g",sqrtsInGeV);
-    pythia.readString(LHCinit.Data());
+    string LHCinit = string("Beams:eCM = ")+options[SQRTS].arg;
+    pythia.readString(LHCinit.c_str());
+    pythiaPU.readString(LHCinit.c_str());
+    
     pythia.init();
-    pythiaPU.readString(LHCinit.Data());
     pythiaPU.init();
 
     // Set up FastJet jet finder.
@@ -276,9 +356,9 @@ int main()
                                 2*RinTowers+1,-0.05-R,R+0.05,
                                 2*RinTowers+1,-0.05-R,R+0.05);
 
-    // File
+    // Files
     std::ofstream outFile;
-    outFile.open("background.txt");
+    outFile.open(outFileName.c_str());
     outFile.precision(6);
     outFile << std::scientific;
 
@@ -293,10 +373,11 @@ int main()
 
         /// Generate main event
         fillCalorimeterWithEvent(calorimeter,event,select,etaMax);
-        
-        nEventPU = rng.Poisson(meanPU);
-        //cout << "Adding PU = " << nEventPU << endl;
+
         /// Generate PU events
+        if(meanPU >= 1) nEventPU = rng.Poisson(meanPU);
+        else nEventPU = 0;
+        
         for (int iEventPU = 0; iEventPU != nEventPU; ++iEventPU) {
             if (!pythiaPU.next()) continue;
             fillCalorimeterWithEvent(calorimeter,eventPU,select,etaMax);

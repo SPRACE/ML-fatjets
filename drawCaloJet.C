@@ -7,7 +7,7 @@
 #include "TStyle.h"
 
 
-void drawCaloJet(int jet, int nEtaBins, int nPhiBins, double jetRadius) {
+void drawCaloJet(int jet, int nEtaBins, int nPhiBins, double jetRadius, const char* fileName) {
 
     TH2D *calorimeter = new TH2D("calorimeter", "Calorimeter representation",
                                 nEtaBins,-jetRadius,jetRadius,
@@ -15,7 +15,7 @@ void drawCaloJet(int jet, int nEtaBins, int nPhiBins, double jetRadius) {
 
     std::ifstream inFile;
     std::string line;
-    inFile.open("background.txt");
+    inFile.open(fileName);
     for(int i=0; i!=jet; ++i) {
         if(not std::getline(inFile, line)) {return;}
     } 
