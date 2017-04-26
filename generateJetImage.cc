@@ -197,7 +197,12 @@ int main()
     double sqrtsInGeV = 13000.0;
     double meanPU = 30.0;
     
-    // Select common parameters for SlowJet and FastJet analyses.
+    double _minJetPt = 200;
+    double _maxJetPt = 250;
+    double _minJetMass = 65;
+    double _maxJetMass = 95;
+    
+    // Select jet finding parameters.
     int    power   = 0;     // -1 = anti-kT; 0 = C/A; 1 = kT.
     double R       = 1.2;    // Jet size.
     double pTMin   = 30.0;    // Min jet pT.
@@ -329,11 +334,12 @@ int main()
 
         nJets->Fill(sortedJets.size());
 
+        if(sortedJets.size() == 0) continue;
       
         /// Find leading jet
         double jetPt = sortedJets[0].perp();
-        if (jetPt < 200) continue;
-        if (jetPt > 250) continue;
+        if (jetPt < _minJetPt) continue;
+        if (jetPt > _maxJetPt) continue;
 
         //cout << "jet mass = " << jetMass << endl;
         //cout << "Found pretrim constituents:" << sortedJets[0].constituents().size() << endl;   
@@ -345,8 +351,8 @@ int main()
         assert(trimmedJet.has_structure_of<fastjet::Filter>());
 
         double jetMass = trimmedJet.m();
-        if(jetMass < 65) continue;  
-        if(jetMass > 95) continue;  
+        if(jetMass < _minJetMass) continue;  
+        if(jetMass > _maxJetMass) continue;  
 
         const fastjet::Filter::StructureType & fj_struct = trimmedJet.structure_of<fastjet::Filter>();
         
