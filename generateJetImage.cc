@@ -136,8 +136,8 @@ void translateParticles(std::vector<TVector3>& particles, double x, double y)
     /// Careful, still for this translation we need to make sure that phi is cyclical.
     /// After this we don't need to care anymore!
     for (int i=0; i!=particles.size(); ++i) {
-        particles.at(i).SetXYZ(TVector2::Phi_mpi_pi(particles.at(i).X()+x),
-                                particles.at(i).Y()+y,
+        particles.at(i).SetXYZ(particles.at(i).X()+x,
+                                TVector2::Phi_mpi_pi(particles.at(i).Y()+y),
                                 particles.at(i).Z());
     }
     return;
@@ -189,8 +189,8 @@ int main()
     const std::string sep = "\t";
 
     // Number of events, generated and listed ones (for jets).
-    int nEvent    = 19;
-    int nEventPU  = 0;
+    int nEvent    = 100;
+    int nEventPU  = 30;
     int nListJets = 3;
 
     // LHC parameters
@@ -310,9 +310,16 @@ int main()
             }
         }             
         //cout << fjInputs.size() << endl;
-
-
-
+        
+        /*
+        fjInputs.clear();
+        fastjet::PseudoJet jjj;
+        jjj.reset_PtYPhiM(400,0.3,3.1+0.3-2*M_PI,0);
+        fjInputs.push_back(jjj);
+        jjj.reset_PtYPhiM(200,-0.3,3.1-0.3,0);
+        fjInputs.push_back(jjj);
+        */
+        
         /// Run Fastjet algorithm and sort jets in pT order.
         vector <fastjet::PseudoJet> inclusiveJets, sortedJets;
         fastjet::ClusterSequence clustSeq(fjInputs, jetDef);
@@ -358,13 +365,13 @@ int main()
         
         /// Convert this to a vector of TVector3, with X = eta, Y = phi_std, Z = Et
         std::vector<TVector3> particles = convertJetToParticles(trimmedJet);
-        
+  
         /// 3) Alignment
 
         /// Translation, such that the jet is centered in 0,0 in eta,phi
         translateParticles(particles,-etaJet,-phiJet);
-        /// Rotation, such that if there are at least two subjets, the two more energetic ones are vertical
 
+        /// Rotation, such that if there are at least two subjets, the two more energetic ones are vertical
         double phiRotation = 0;
         if(nSubjets > 1) {
             /// Translate the two subjets as well to not make mistakes
@@ -372,7 +379,7 @@ int main()
                         TVector2::Phi_mpi_pi(trimmedJet.pieces().at(0).phi_std()-phiJet));
             TVector2 v2(trimmedJet.pieces().at(1).eta()-etaJet,
                         TVector2::Phi_mpi_pi(trimmedJet.pieces().at(1).phi_std()-phiJet));
-            phiRotation = TVector2::Phi_mpi_pi(v2.Phi()-v1.Phi());
+            phiRotation = TVector2::Phi_mpi_pi((v2-v1).Phi()+M_PI_2);
         }
         rotateParticles(particles,-phiRotation);
         /// Reflection, such that the eta > 0 side has more sumEt than the eta < 0 side
@@ -387,8 +394,16 @@ int main()
         /// Fill a mini-calorimeter (just the jet) with the particles
         fillCalorimeterWithParticles(caloJet,particles);
         
+        /// And write it to the outFile
+        for(int iEta = 1; iEta <= caloJet->GetNbinsX(); ++iEta) {
+            for(int iPhi= 1; iPhi <= caloJet->GetNbinsY(); ++iPhi) {
+                outFile << caloJet->GetBinContent(iEta,iPhi) << sep;
+            }
+        }
+        outFile << endl;
+        
         /// Save nice plots
-        if(true) {
+        if(nEvent==16) {
             saveCalorimeterImage(caloJet,"caloJet.png",1E-4,1);
             saveCalorimeterImage(calorimeter,"calorimeter.png");
             zeroCalorimeterAroundJet(calorimeter, jetEtaBin, jetPhiBin, RinTowers, nEtaBins, nPhiBins);

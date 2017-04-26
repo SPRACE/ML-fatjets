@@ -7,11 +7,11 @@
 #include "TStyle.h"
 
 
-void drawCaloJet(int jet, int nEtaBins, int nPhiBins) {
+void drawCaloJet(int jet, int nEtaBins, int nPhiBins, double jetRadius) {
 
     TH2D *calorimeter = new TH2D("calorimeter", "Calorimeter representation",
-                                nEtaBins,0,0.1*nEtaBins,
-                                nPhiBins,0,0.1*nPhiBins); 
+                                nEtaBins,-jetRadius,jetRadius,
+                                nPhiBins,-jetRadius,jetRadius); 
 
     std::ifstream inFile;
     std::string line;
@@ -36,7 +36,7 @@ void drawCaloJet(int jet, int nEtaBins, int nPhiBins) {
     cv->SetRightMargin(0.15);
     st.cd();            
     calorimeter->Draw("COLZ");
-    calorimeter->GetZaxis()->SetRangeUser(0.1,1000);
+    calorimeter->GetZaxis()->SetRangeUser(1E-4,1);
     cv->SetLogz(true);
     cv->SaveAs("jet.png");
 }
