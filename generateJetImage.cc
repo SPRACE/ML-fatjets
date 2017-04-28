@@ -41,6 +41,7 @@ void fillCalorimeterWithEvent(TH2* calorimeter, const Pythia8::Event& event, int
                 // Require visible/charged particles inside detector.
                 if (select > 2 &&  event[i].isNeutral()) continue;
                 else if (select == 2 && !event[i].isVisible()) continue;
+                //if (select == 2 && abs(event[i].id())==13) continue; // No muons
                 if (etaMax < 20. && abs(event[i].eta()) > etaMax) continue;
 
                 // Optionally modify mass and energy.
@@ -225,7 +226,9 @@ int main(int argc, char* argv[])
   }
 };
 
-    enum  optionIndex { UNKNOWN, OUTFNAME, NUMEVENTS, AVERAGEPU, SQRTS, MINJMASS, MAXJMASS, MINJETPT, MAXJETPT };
+    enum  optionIndex { UNKNOWN, OUTFNAME, NUMEVENTS, AVERAGEPU, SQRTS, 
+                        MINJMASS, MAXJMASS, MINJETPT, MAXJETPT,
+                        PROCESS };
     const option::Descriptor usage[] =
         {
             {UNKNOWN,  0,"" , ""    ,option::Arg::None, "USAGE: generateJetImage [options]\n\n"
@@ -237,7 +240,8 @@ int main(int argc, char* argv[])
             {MINJMASS, 0,""  , "minJetMass"    ,Arg::NonEmpty, " --minJetMass \tMin jet mass in GeV"},
             {MAXJMASS, 0,""  , "maxJetMass"    ,Arg::NonEmpty, " --maxJetMass \tMax jet mass in GeV"},
             {MINJETPT, 0,""  , "minJetPt"    ,Arg::NonEmpty, " --minJetPt \tMin jet mass in GeV"},
-            {MAXJETPT, 0,""  , "maxJetPt"    ,Arg::NonEmpty, " --maxJetPt \tMax jet mass in GeV"},
+            {MAXJETPT, 0,""  , "maxJetPt"    ,Arg::NonEmpty, " --maxJetPt	 \tMax jet mass in GeV"},
+            {PROCESS,  0,""  , "process"    ,Arg::NonEmpty, " --process	 \tProcess: 0=bkg, 1=sig"},
             {0,0,0,0,0,0}
         };
     
@@ -260,6 +264,7 @@ int main(int argc, char* argv[])
     int nEvent    = 1000;
     int nEventPU  = 0;
     int nListJets = 3;
+    int processType =  0; //0 = background, 1 = signal
     string outFileName = "output.txt";
 
     // LHC parameters
@@ -280,7 +285,8 @@ int main(int argc, char* argv[])
     if(options[MAXJMASS]) _maxJetMass = atof(options[MAXJMASS].arg);
     if(options[MINJETPT]) _minJetPt = atof(options[MINJETPT].arg);
     if(options[MAXJETPT]) _maxJetPt = atof(options[MAXJETPT].arg);
-    
+    if(options[PROCESS]) processType = atoi(options[PROCESS].arg);
+
     // Select jet finding parameters.
     int    power   = 0;     // -1 = anti-kT; 0 = C/A; 1 = kT.
     double R       = 1.2;    // Jet size.
@@ -294,15 +300,26 @@ int main(int argc, char* argv[])
     Pythia pythiaPU("../share/Pythia8/xmldoc",false);
 
     Event &event = pythia.event;
+    Event &process = pythia.process;
     Event &eventPU = pythiaPU.event;
 
     TRandom3 rng(5713919);
     
     // Process selection.
-    pythia.readString("HardQCD:all = on");
-    pythiaPU.readString("SoftQCD:nonDiffractive = on");
+    if(processType == 0) {
+        pythia.readString("HardQCD:all = on");
+        }
+    if(processType == 1) {
+        pythia.readString("WeakDoubleBoson:ffbar2ZW = on");
+        pythia.readString("23:onMode = off");
+        pythia.readString("23:onIfAny = 12 14 16");
+        pythia.readString("24:onMode = off");
+        pythia.readString("24:onIfAny = 1 2 3 4 5");
+        }
     pythia.readString((TString("PhaseSpace:pTHatMin = ") + TString::Format("%g",_minJetPt-50)).Data());
     pythia.readString((TString("PhaseSpace:pTHatMax = ") + TString::Format("%g",_maxJetPt+50)).Data());
+
+    pythiaPU.readString("SoftQCD:nonDiffractive = on");
 
     // No event record printout.
     pythia.readString("Next:numberShowInfo = 0");
@@ -369,14 +386,18 @@ int main(int argc, char* argv[])
     
         calorimeter->Reset();
         caloJet->Reset();
-        if (!pythia.next()) continue;
 
         /// Generate main event
+        if (!pythia.next()) continue;
+        if (iEvent==1) process.list();
+        
+        /// Fill calorimeter with it
         fillCalorimeterWithEvent(calorimeter,event,select,etaMax);
 
         /// Generate PU events
         if(meanPU >= 1) nEventPU = rng.Poisson(meanPU);
         else nEventPU = 0;
+        //cout << "Adding " << nEventPU << " events" << endl;
         
         for (int iEventPU = 0; iEventPU != nEventPU; ++iEventPU) {
             if (!pythiaPU.next()) continue;
@@ -492,8 +513,10 @@ int main(int argc, char* argv[])
         }
         outFile << endl;
         
+        //cout << "iEvent == " << iEvent << endl;
         /// Save nice plots
-        if(nEvent==16) {
+        if(iEvent==18) {
+            cout << "Printing event" << endl;
             saveCalorimeterImage(caloJet,"caloJet.png",1E-4,1);
             saveCalorimeterImage(calorimeter,"calorimeter.png");
             zeroCalorimeterAroundJet(calorimeter, jetEtaBin, jetPhiBin, RinTowers, nEtaBins, nPhiBins);
