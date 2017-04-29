@@ -1,5 +1,9 @@
-export TMPDIR=/tmp/trtomei
-cd $TMPDIR
+#export TMPDIR=/tmp/trtomei
+#cd $TMPDIR
+
+echo /bin/hostname
+echo $PWD
+/bin/ls
 
 module load root
 

@@ -303,8 +303,11 @@ int main(int argc, char* argv[])
     Event &process = pythia.process;
     Event &eventPU = pythiaPU.event;
 
-    TRandom3 rng(5713919);
-    
+    /// Random infrastrucure - zero is seeds based on time
+    TRandom3 rng(0);
+    pythia.ReadString("Random:setSeed = on");
+    pythia.ReadString("Random:seed = 0");
+
     // Process selection.
     if(processType == 0) {
         pythia.readString("HardQCD:all = on");
