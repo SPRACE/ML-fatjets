@@ -305,8 +305,8 @@ int main(int argc, char* argv[])
 
     /// Random infrastrucure - zero is seeds based on time
     TRandom3 rng(0);
-    pythia.ReadString("Random:setSeed = on");
-    pythia.ReadString("Random:seed = 0");
+    pythia.readString("Random:setSeed = on");
+    pythia.readString("Random:seed = 0");
 
     // Process selection.
     if(processType == 0) {
