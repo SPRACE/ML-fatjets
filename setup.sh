@@ -1,7 +1,12 @@
-#export TMPDIR=/tmp/trtomei
-#cd $TMPDIR
+#!/bin/sh
+#SBATCH --time=1
 
-echo /bin/hostname
+#export TMPDIR=/tmp/trtomei
+#export TMPDIR=`mktemp -d`
+export TMPDIR=$PWD
+cd $TMPDIR
+
+/bin/hostname
 echo $PWD
 /bin/ls
 
