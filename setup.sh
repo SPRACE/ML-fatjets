@@ -1,6 +1,7 @@
 #!/bin/sh
 #SBATCH --time=1
 
+# Choose the correct temporary directory to run
 #export TMPDIR=/tmp/trtomei
 #export TMPDIR=`mktemp -d`
 export TMPDIR=$PWD
@@ -10,7 +11,11 @@ cd $TMPDIR
 echo $PWD
 /bin/ls
 
-module load root
+# Do whatever you need to do to setup ROOT
+# In GridUnesp, you should do "module load root"
+# module load root
+# Else where, you should source thisroot.sh (or csh) from wherever it is installed
+# source $ROOTDIR/bin/thisroot.sh
 
 ### Fastjet
 export FASTJETDIR=$TMPDIR/fjdir
