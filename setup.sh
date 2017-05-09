@@ -36,7 +36,7 @@ wget http://home.thep.lu.se/~torbjorn/pythia8/pythia8223.tgz
 tar -xzf pythia8223.tgz
 cd pythia8223
 export PYTHIA8DIR=$PWD
-./configure --with-fastjet3=$FASTJETDIR --with-gzip
+./configure --with-fastjet3=$FASTJETDIR
 make -j 4
 
 ### Our repo
