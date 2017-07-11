@@ -86,7 +86,7 @@ void fillCalorimeterWithJet(TH2* calorimeter, const fastjet::PseudoJet& jet)
                             jet.constituents().at(i).phi_std(),
                             jet.constituents().at(i).Et());
     }
-} 
+}
 
 void fillCalorimeterWithParticles(TH2* calorimeter, const std::vector<TVector3>& particles)
 {
@@ -95,13 +95,13 @@ void fillCalorimeterWithParticles(TH2* calorimeter, const std::vector<TVector3>&
                             particles.at(i).Y(),
                             particles.at(i).Z());
     }
-} 
+}
 
 void printConstituents(const fastjet::PseudoJet& jet)
 {
     for (int i=0; i!=jet.constituents().size(); ++i) {
         cout << jet.constituents().at(i).eta() << " "
-        << jet.constituents().at(i).phi_std() << " " 
+        << jet.constituents().at(i).phi_std() << " "
         << jet.constituents().at(i).Et() << " " << endl;
     }
 }
@@ -110,9 +110,9 @@ void saveCalorimeterImage(TH2* calorimeter, const char* name, double rangeMin = 
 {
         TCanvas cv("cv","cv",600,600);
         TStyle st;
-        st.SetPalette(kLightTemperature);            
+        st.SetPalette(kLightTemperature);
         st.SetOptStat(0);
-        st.cd();            
+        st.cd();
         calorimeter->Draw("COLZ");
         if(rangeMin > 0 and rangeMax > 0)
             calorimeter->GetZaxis()->SetRangeUser(rangeMin,rangeMax);
@@ -121,7 +121,7 @@ void saveCalorimeterImage(TH2* calorimeter, const char* name, double rangeMin = 
         cv.SaveAs(name);
 }
 
-std::vector<TVector3> convertJetToParticles (const fastjet::PseudoJet& jet) 
+std::vector<TVector3> convertJetToParticles (const fastjet::PseudoJet& jet)
 {
     std::vector<TVector3> result;
     for(int i=0; i!= jet.constituents().size(); ++i) {
@@ -134,7 +134,7 @@ std::vector<TVector3> convertJetToParticles (const fastjet::PseudoJet& jet)
     return result;
 }
 
-void translateParticles(std::vector<TVector3>& particles, double x, double y) 
+void translateParticles(std::vector<TVector3>& particles, double x, double y)
 {
     /// Careful, still for this translation we need to make sure that phi is cyclical.
     /// After this we don't need to care anymore!
@@ -146,7 +146,7 @@ void translateParticles(std::vector<TVector3>& particles, double x, double y)
     return;
 }
 
-void rotateParticles(std::vector<TVector3>& particles, double phi) 
+void rotateParticles(std::vector<TVector3>& particles, double phi)
 {
     for (int i=0; i!=particles.size(); ++i) {
         particles.at(i).RotateZ(phi);
@@ -154,7 +154,7 @@ void rotateParticles(std::vector<TVector3>& particles, double phi)
     return;
 }
 
-void reflectParticlesIfNeeded(std::vector<TVector3>& particles) 
+void reflectParticlesIfNeeded(std::vector<TVector3>& particles)
 {
     double rightSideEt = 0;
     double leftSideEt = 0;
@@ -226,7 +226,7 @@ int main(int argc, char* argv[])
   }
 };
 
-    enum  optionIndex { UNKNOWN, OUTFNAME, NUMEVENTS, AVERAGEPU, SQRTS, 
+    enum  optionIndex { UNKNOWN, OUTFNAME, NUMEVENTS, AVERAGEPU, SQRTS,
                         MINJMASS, MAXJMASS, MINJETPT, MAXJETPT,
                         PROCESS };
     const option::Descriptor usage[] =
@@ -244,19 +244,19 @@ int main(int argc, char* argv[])
             {PROCESS,  0,""  , "process"    ,Arg::NonEmpty, " --process	 \tProcess: 0=bkg, 1=sig"},
             {0,0,0,0,0,0}
         };
-    
+
     /// Parsing the options
     argc-=(argc>0); argv+=(argc>0); // skip program name argv[0] if present
     option::Stats  stats(usage, argc, argv);
     option::Option options[stats.options_max], buffer[stats.buffer_max];
     option::Parser parse(usage, argc, argv, options, buffer);
-    
+
     if (parse.error()) return 1;
     if (options[UNKNOWN]) {
         option::printUsage(std::cout, usage);
         return 0;
     }
-    
+
     // Separator
     const std::string sep = "\t";
 
@@ -270,12 +270,12 @@ int main(int argc, char* argv[])
     // LHC parameters
     double sqrtsInGeV = 13000.0;
     double meanPU = 0.0;
-    
+
     double _minJetMass = 65;
     double _maxJetMass = 95;
     double _minJetPt = 200;
     double _maxJetPt = 250;
-    
+
 
     if(options[OUTFNAME]) outFileName = options[OUTFNAME].arg;
     if(options[NUMEVENTS]) nEvent = atof(options[NUMEVENTS].arg);
@@ -339,12 +339,12 @@ int main(int argc, char* argv[])
     pythiaPU.readString("Init:showMultipartonInteractions = off");
     std::ofstream* nullStream = 0;
     fastjet::ClusterSequence::set_fastjet_banner_stream(nullStream);
-    
+
     // LHC initialization.
-    string LHCinit = string("Beams:eCM = ")+options[SQRTS].arg;
+    string LHCinit = string("Beams:eCM = ") + std::to_string(sqrtsInGeV);
     pythia.readString(LHCinit.c_str());
     pythiaPU.readString(LHCinit.c_str());
-    
+
     pythia.init();
     pythiaPU.init();
 
@@ -386,14 +386,14 @@ int main(int argc, char* argv[])
 
     // Begin event loop. Generate event. Skip if error.
     for (int iEvent = 0; iEvent < nEvent; ++iEvent) {
-    
+
         calorimeter->Reset();
         caloJet->Reset();
 
         /// Generate main event
         if (!pythia.next()) continue;
         if (iEvent==1) process.list();
-        
+
         /// Fill calorimeter with it
         fillCalorimeterWithEvent(calorimeter,event,select,etaMax);
 
@@ -401,17 +401,17 @@ int main(int argc, char* argv[])
         if(meanPU >= 1) nEventPU = rng.Poisson(meanPU);
         else nEventPU = 0;
         //cout << "Adding " << nEventPU << " events" << endl;
-        
+
         for (int iEventPU = 0; iEventPU != nEventPU; ++iEventPU) {
             if (!pythiaPU.next()) continue;
             fillCalorimeterWithEvent(calorimeter,eventPU,select,etaMax);
-        }   
-                    
+        }
+
         /// Transform calo towers back into particles
         std::vector <fastjet::PseudoJet> fjInputs;
         for(int nBinsX=1 ; nBinsX<=calorimeter->GetNbinsX() ; ++nBinsX ) {
             for(int nBinsY=1 ; nBinsY<=calorimeter->GetNbinsY() ; ++nBinsY ) {
-                fastjet::PseudoJet fji; 
+                fastjet::PseudoJet fji;
                 Double_t etaCenter = calorimeter->GetXaxis()->GetBinCenter(nBinsX);
                 Double_t phiCenter = calorimeter->GetYaxis()->GetBinCenter(nBinsY);
                 Double_t sumEt     = calorimeter->GetBinContent(nBinsX,nBinsY);
@@ -419,9 +419,9 @@ int main(int argc, char* argv[])
                 fjInputs.push_back(fji);
                 //cout << etaCenter << " " << phiCenter << endl;
             }
-        }             
+        }
         //cout << fjInputs.size() << endl;
-        
+
         /*
         fjInputs.clear();
         fastjet::PseudoJet jjj;
@@ -430,7 +430,7 @@ int main(int argc, char* argv[])
         jjj.reset_PtYPhiM(200,-0.3,3.1-0.3,0);
         fjInputs.push_back(jjj);
         */
-        
+
         /// Run Fastjet algorithm and sort jets in pT order.
         vector <fastjet::PseudoJet> inclusiveJets, sortedJets;
         fastjet::ClusterSequence clustSeq(fjInputs, jetDef);
@@ -440,27 +440,27 @@ int main(int argc, char* argv[])
         nJets->Fill(sortedJets.size());
 
         if(sortedJets.size() == 0) continue;
-      
+
         /// Find leading jet
         double jetPt = sortedJets[0].perp();
         if (jetPt < _minJetPt) continue;
         if (jetPt > _maxJetPt) continue;
 
         //cout << "jet mass = " << jetMass << endl;
-        //cout << "Found pretrim constituents:" << sortedJets[0].constituents().size() << endl;   
-             
+        //cout << "Found pretrim constituents:" << sortedJets[0].constituents().size() << endl;
+
         /// 1) Do the noise reduction with TRIMMING
-        fastjet::Filter trimmer (fastjet::JetDefinition(fastjet::kt_algorithm, 0.3), 
+        fastjet::Filter trimmer (fastjet::JetDefinition(fastjet::kt_algorithm, 0.3),
                                  fastjet::SelectorPtFractionMin(0.05));
         fastjet::PseudoJet trimmedJet = trimmer(sortedJets[0]);
         assert(trimmedJet.has_structure_of<fastjet::Filter>());
 
         double jetMass = trimmedJet.m();
-        if(jetMass < _minJetMass) continue;  
-        if(jetMass > _maxJetMass) continue;  
+        if(jetMass < _minJetMass) continue;
+        if(jetMass > _maxJetMass) continue;
 
         const fastjet::Filter::StructureType & fj_struct = trimmedJet.structure_of<fastjet::Filter>();
-        
+
         /// 2) Doing the trimming automatically defines the points of interest as the subjets
         int nSubjets = trimmedJet.pieces().size();
         //cout << "Found subjets: " << nSubjets << endl;
@@ -479,10 +479,10 @@ int main(int argc, char* argv[])
             //cout << "Points of interest: " << trimmedJet.pieces().at(i).eta() << " " << trimmedJet.pieces().at(i).phi_std() << " " << trimmedJet.pieces().at(i).Et() << endl;
                                         }
 
-        
+
         /// Convert this to a vector of TVector3, with X = eta, Y = phi_std, Z = Et
         std::vector<TVector3> particles = convertJetToParticles(trimmedJet);
-  
+
         /// 3) Alignment
 
         /// Translation, such that the jet is centered in 0,0 in eta,phi
@@ -501,13 +501,13 @@ int main(int argc, char* argv[])
         rotateParticles(particles,-phiRotation);
         /// Reflection, such that the eta > 0 side has more sumEt than the eta < 0 side
         reflectParticlesIfNeeded(particles);
-        
+
         /// 4) Normalization, such that sum of square of calo towers is one.
         normalizeParticles(particles);
 
         /// Fill a mini-calorimeter (just the jet) with the particles
         fillCalorimeterWithParticles(caloJet,particles);
-        
+
         /// And write it to the outFile
         for(int iEta = 1; iEta <= caloJet->GetNbinsX(); ++iEta) {
             for(int iPhi= 1; iPhi <= caloJet->GetNbinsY(); ++iPhi) {
@@ -515,7 +515,7 @@ int main(int argc, char* argv[])
             }
         }
         outFile << endl;
-        
+
         //cout << "iEvent == " << iEvent << endl;
         /// Save nice plots
         if(iEvent==18) {
@@ -527,8 +527,8 @@ int main(int argc, char* argv[])
             fillCalorimeterWithJet(calorimeter,trimmedJet);
             saveCalorimeterImage(calorimeter,"calorimeter_trimmed.png");
         }
-    } //Close event loop 
-       
+    } //Close event loop
+
 
     // Statistics. Histograms.
     //pythia.stat();
