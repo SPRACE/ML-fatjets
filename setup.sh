@@ -11,6 +11,16 @@ cd $TMPDIR
 echo $PWD
 /bin/ls
 
+CURL_CMD=""
+if command -v curl; then
+    CURL_CMD='curl -O'
+elif command -v wget; then
+    CURL_CMD=wget
+else
+    printf "This program requires either curl or wget\n" 1>&2
+    exit 1
+fi
+
 # Do whatever you need to do to setup ROOT
 # In GridUnesp, you should do "module load root"
 # module load root
@@ -20,7 +30,7 @@ echo $PWD
 ### Fastjet
 export FASTJETDIR=$TMPDIR/fjdir
 mkdir -p $FASTJETDIR
-wget http://fastjet.fr/repo/fastjet-3.2.1.tar.gz
+$CURL_CMD http://fastjet.fr/repo/fastjet-3.2.1.tar.gz
 tar -xzf fastjet-3.2.1.tar.gz
 cd fastjet-3.2.1
 ./configure --prefix=$FASTJETDIR
@@ -32,7 +42,7 @@ export PATH=$FASTJETDIR/bin:$PATH
 export PYTHIADIR=$TMPDIR/pythia8
 mkdir -p $PYTHIADIR
 cd $PYTHIADIR
-wget http://home.thep.lu.se/~torbjorn/pythia8/pythia8223.tgz
+$CURL_CMD http://home.thep.lu.se/~torbjorn/pythia8/pythia8223.tgz
 tar -xzf pythia8223.tgz
 cd pythia8223
 export PYTHIA8DIR=$PWD
