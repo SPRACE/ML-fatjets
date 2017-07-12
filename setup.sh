@@ -42,7 +42,7 @@ make -j 4
 ### Our repo
 cd $TMPDIR
 export GIT_SSL_NO_VERIFY=1
-export MLFATJETSREPO=https://github.com/SPRACE/ML-fatjets/.git
-git clone MLFATJETSREPO
+export MLFATJETSREPO=https://github.com/SPRACE/ML-fatjets.git
+git clone $MLFATJETSREPO
 cd ML-fatjets
 source compileGenerateJetImage.sh
