@@ -12,21 +12,8 @@ Code for studies on jet imaging and identification with Machine Learning.
 ## Files
 
    * compileGenerateJetImage.sh: checks for the presence of ROOT, Pythia and Fastjet, and compiles the generateJetImage.cc code.
-   * generateJetImage.cc: generates jet images according to the switches:
-
-USAGE: generateJetImage [options]
-
-Options:
- --outFileName   Output file name
- --numEvents, -n Number of tried events
- --averagePU     Average pileup
- --sqrts         Center of mass energy in GeV
- --minJetMass    Min jet mass in GeV
- --maxJetMass    Max jet mass in GeV
- --minJetPt      Min jet mass in GeV
- --maxJetPt      Max jet mass in GeV
- --process       Process: 0=bkg, 1=sig
-
+   * generateJetImage.cc: generates jet images according to a series of switches. Run with ./generateJetImage --help to see the options.
+   
 ## TODO
 
 (everything after here is old and may be deprecated)
