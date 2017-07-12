@@ -6,19 +6,19 @@
 #include "TCanvas.h"
 #include "TStyle.h"
 
-
-void drawCaloJet(int jet, int nEtaBins, int nPhiBins, double jetRadius, const char* fileName) {
+void drawCaloJet(int jet, int nEtaBins, int nPhiBins, double jetRadius, const char* fileName,
+                const char* imageName = "jet.png") {
 
     TH2D *calorimeter = new TH2D("calorimeter", "Calorimeter representation",
                                 nEtaBins,-jetRadius,jetRadius,
-                                nPhiBins,-jetRadius,jetRadius); 
+                                nPhiBins,-jetRadius,jetRadius);
 
     std::ifstream inFile;
     std::string line;
     inFile.open(fileName);
     for(int i=0; i!=jet; ++i) {
         if(not std::getline(inFile, line)) {return;}
-    } 
+    }
 
     double content;
     std::istringstream iss(line);
@@ -29,15 +29,16 @@ void drawCaloJet(int jet, int nEtaBins, int nPhiBins, double jetRadius, const ch
             calorimeter->SetBinContent(iEta,iPhi,content);
         }
     }
-    TCanvas* cv = new TCanvas("cv","cv",600,600);   
+    TCanvas* cv = new TCanvas("cv","cv",600,600);
     TStyle st;
-    st.SetPalette(kLightTemperature);            
+    st.SetPalette(kInvertedDarkBodyRadiator);
     st.SetOptStat(0);
     cv->SetRightMargin(0.15);
-    st.cd();            
+    st.cd();
     calorimeter->Draw("COLZ");
-    calorimeter->GetZaxis()->SetRangeUser(1E-4,1);
+    calorimeter->GetXaxis()->SetTitle("x");
+    calorimeter->GetYaxis()->SetTitle("y");
+    calorimeter->GetZaxis()->SetRangeUser(5E-4,1);
     cv->SetLogz(true);
-    cv->SaveAs("jet.png");
+    cv->SaveAs(imageName);
 }
-
