@@ -6,6 +6,7 @@
 #include <string>
 #include <cstdlib>
 #include "optionparser.h"
+
 #include "Pythia8/Pythia.h"
 
 // The FastJet3.h header enables automatic initialisation of
@@ -28,171 +29,14 @@
 #include "TVector3.h"
 #include "TString.h"
 
-using namespace Pythia8;
 
-void fillCalorimeterWithEvent(TH2 *calorimeter, const Pythia8::Event &event, int select, double etaMax)
-{
-    // Begin FastJet analysis: extract particles from event record.
-    Vec4   pTemp;
-    //double mTemp; /// Not used right now!
-    int nAnalyze = 0;
-    for (int i = 0; i < event.size(); ++i) if (event[i].isFinal()) {
 
-            // Require visible/charged particles inside detector.
-            if (select > 2 &&  event[i].isNeutral()) continue;
-            else if (select == 2 && !event[i].isVisible()) continue;
-            //if (select == 2 && abs(event[i].id())==13) continue; // No muons
-            if (etaMax < 20. && abs(event[i].eta()) > etaMax) continue;
-
-            // Optionally modify mass and energy.
-            pTemp = event[i].p();
-            //mTemp = event[i].m();
-
-            /// Add the particle to the calorimeter
-            calorimeter->Fill(pTemp.eta(), pTemp.phi(), pTemp.eT());
-            ++nAnalyze;
-        }
-}
-
-void zeroCalorimeterAroundJet(TH2 *calorimeter, int jetEtaBin, int jetPhiBin, int RinTowers, int nEtaBins, int nPhiBins)
-{
-    /// Now here we have to be careful
-    /// If we are at a border in eta, we have to stop
-    /// If we are at a border in phi, we have to loop
-    int startingEta = jetEtaBin - RinTowers;
-    int endingEta = jetEtaBin + RinTowers;
-    int startingPhi = jetPhiBin - RinTowers;
-    int endingPhi = jetPhiBin + RinTowers;
-    for (int iEta = startingEta; iEta <= endingEta; ++ iEta) {
-        for (int iPhi = startingPhi; iPhi <= endingPhi; ++ iPhi) {
-            double content = 0;
-            int targetPhi = iPhi;
-            // Stop on eta
-            if (iEta < 1 or iEta > nEtaBins) {
-                content = 0;
-            }
-            // Loop on phi
-            if (targetPhi < 1) {
-                targetPhi += nPhiBins;
-            }
-            if (targetPhi > nPhiBins) {
-                targetPhi -= nPhiBins;
-            }
-
-            /// Zero the calorimeter
-            calorimeter->SetBinContent(iEta, targetPhi, 0);
-        }
-    }
-}
-
-void fillCalorimeterWithJet(TH2 *calorimeter, const fastjet::PseudoJet &jet)
-{
-    for (int i = 0; i != jet.constituents().size(); ++i) {
-        calorimeter->Fill(jet.constituents().at(i).eta(),
-                          jet.constituents().at(i).phi_std(),
-                          jet.constituents().at(i).Et());
-    }
-}
-
-void fillCalorimeterWithParticles(TH2 *calorimeter, const std::vector<TVector3> &particles)
-{
-    for (int i = 0; i != particles.size(); ++i) {
-        calorimeter->Fill(particles.at(i).X(),
-                          particles.at(i).Y(),
-                          particles.at(i).Z());
-    }
-}
-
-void printConstituents(const fastjet::PseudoJet &jet)
-{
-    for (int i = 0; i != jet.constituents().size(); ++i) {
-        cout << jet.constituents().at(i).eta() << " "
-             << jet.constituents().at(i).phi_std() << " "
-             << jet.constituents().at(i).Et() << " " << endl;
-    }
-}
-
-void saveCalorimeterImage(TH2 *calorimeter, const char *name, double rangeMin = 0.1, double rangeMax = 1000)
-{
-    TCanvas cv("cv", "cv", 600, 600);
-    TStyle st;
-    st.SetPalette(kLightTemperature);
-    st.SetOptStat(0);
-    st.cd();
-    calorimeter->Draw("COLZ");
-    if (rangeMin > 0 and rangeMax > 0)
-        calorimeter->GetZaxis()->SetRangeUser(rangeMin, rangeMax);
-    cv.SetLogz(true);
-    cv.SetRightMargin(0.15);
-    cv.SaveAs(name);
-}
-
-std::vector<TVector3> convertJetToParticles(const fastjet::PseudoJet &jet)
-{
-    std::vector<TVector3> result;
-    for (int i = 0; i != jet.constituents().size(); ++i) {
-        result.push_back(TVector3(
-                             jet.constituents().at(i).eta(),
-                             jet.constituents().at(i).phi_std(),
-                             jet.constituents().at(i).Et()
-                         ));
-    }
-    return result;
-}
-
-void translateParticles(std::vector<TVector3> &particles, double x, double y)
-{
-    /// Careful, still for this translation we need to make sure that phi is cyclical.
-    /// After this we don't need to care anymore!
-    for (int i = 0; i != particles.size(); ++i) {
-        particles.at(i).SetXYZ(particles.at(i).X() + x,
-                               TVector2::Phi_mpi_pi(particles.at(i).Y() + y),
-                               particles.at(i).Z());
-    }
-    return;
-}
-
-void rotateParticles(std::vector<TVector3> &particles, double phi)
-{
-    for (int i = 0; i != particles.size(); ++i) {
-        particles.at(i).RotateZ(phi);
-    }
-    return;
-}
-
-void reflectParticlesIfNeeded(std::vector<TVector3> &particles)
-{
-    double rightSideEt = 0;
-    double leftSideEt = 0;
-    for (int i = 0; i != particles.size(); ++i) {
-        if (particles.at(i).X() >= 0) rightSideEt += particles.at(i).Z();
-        else leftSideEt += particles.at(i).Z();
-    }
-    if (leftSideEt > rightSideEt) {
-        for (int i = 0; i != particles.size(); ++i) {
-            particles.at(i).SetX(-particles.at(i).X());
-        }
-    }
-    return;
-}
-
-void normalizeParticles(std::vector<TVector3> &particles)
-{
-    double sumEtSquared = 0;
-    double norm = 0;
-    for (int i = 0; i != particles.size(); ++i) {
-        sumEtSquared += particles.at(i).Z() * particles.at(i).Z();
-    }
-    //cout << "sumEtSquared = " << sumEtSquared << endl;
-    for (int i = 0; i != particles.size(); ++i) {
-        particles.at(i).SetZ(particles.at(i).Z() / sqrt(sumEtSquared));
-        norm += particles.at(i).Z() * particles.at(i).Z();
-    }
-    //cout << "sumEtSquared = " << norm << endl;
-}
-
+#include "CalorimeterFunctions.h"
+#include "CalorimeterFillers.h"
+ 
 int main(int argc, char *argv[])
 {
+    using namespace Pythia8;
 
     struct Arg: public option::Arg {
         static void printError(const char *msg1, const option::Option &opt, const char *msg2)
@@ -379,7 +223,7 @@ int main(int argc, char *argv[])
                                  nEtaBins, minCaloEta, maxCaloEta,
                                  nPhiBins, -3.14159, 3.14159);
     int RinTowers = TMath::Nint(R / ((maxCaloEta - minCaloEta) / nEtaBins));
-    //cout << "R in towers = " << RinTowers << endl;
+    //std::cout << "R in towers = " << RinTowers << std::endl;
     TH2D *caloJet = new TH2D("caloJet", "Calorimeter jet representation",
                              2 * RinTowers + 1, -0.05 - R, R + 0.05,
                              2 * RinTowers + 1, -0.05 - R, R + 0.05);
@@ -408,7 +252,7 @@ int main(int argc, char *argv[])
         /// Generate PU events
         if (meanPU >= 1) nEventPU = rng.Poisson(meanPU);
         else nEventPU = 0;
-        //cout << "Adding " << nEventPU << " events" << endl;
+        //std::cout << "Adding " << nEventPU << " events" << std::endl;
 
         for (int iEventPU = 0; iEventPU != nEventPU; ++iEventPU) {
             if (!pythiaPU.next()) continue;
@@ -425,10 +269,10 @@ int main(int argc, char *argv[])
                 Double_t sumEt     = calorimeter->GetBinContent(nBinsX, nBinsY);
                 fji.reset_PtYPhiM(sumEt, etaCenter, phiCenter);
                 fjInputs.push_back(fji);
-                //cout << etaCenter << " " << phiCenter << endl;
+                //std::cout << etaCenter << " " << phiCenter << std::endl;
             }
         }
-        //cout << fjInputs.size() << endl;
+        //std::cout << fjInputs.size() << std::endl;
 
         /*
         fjInputs.clear();
@@ -454,8 +298,8 @@ int main(int argc, char *argv[])
         if (jetPt < _minJetPt) continue;
         if (jetPt > _maxJetPt) continue;
 
-        //cout << "jet mass = " << jetMass << endl;
-        //cout << "Found pretrim constituents:" << sortedJets[0].constituents().size() << endl;
+        //std::cout << "jet mass = " << jetMass << std::endl;
+        //std::cout << "Found pretrim constituents:" << sortedJets[0].constituents().size() << std::endl;
 
         /// 1) Do the noise reduction with TRIMMING
         fastjet::Filter trimmer(fastjet::JetDefinition(fastjet::kt_algorithm, 0.3),
@@ -471,8 +315,8 @@ int main(int argc, char *argv[])
 
         /// 2) Doing the trimming automatically defines the points of interest as the subjets
         int nSubjets = trimmedJet.pieces().size();
-        //cout << "Found subjets: " << nSubjets << endl;
-        //cout << "Found posttrim constituents:" << trimmedJet.constituents().size() << endl;
+        //std::cout << "Found subjets: " << nSubjets << std::endl;
+        //std::cout << "Found posttrim constituents:" << trimmedJet.constituents().size() << std::endl;
         //printConstituents(sortedJets[0]);
 
         /// Found the position of the trimmed jet in the calorimeter, in order to zero it
@@ -484,9 +328,9 @@ int main(int argc, char *argv[])
         int jetPhiBin;
         int jetZBin;
         calorimeter->GetBinXYZ(globalJetBin, jetEtaBin, jetPhiBin, jetZBin);
-        //cout << "Jet centroid: " << etaJet << " " << phiJet << endl;
+        //std::cout << "Jet centroid: " << etaJet << " " << phiJet << std::endl;
         for (int i = 0; i != nSubjets; ++i) {
-            //cout << "Points of interest: " << trimmedJet.pieces().at(i).eta() << " " << trimmedJet.pieces().at(i).phi_std() << " " << trimmedJet.pieces().at(i).Et() << endl;
+            //std::cout << "Points of interest: " << trimmedJet.pieces().at(i).eta() << " " << trimmedJet.pieces().at(i).phi_std() << " " << trimmedJet.pieces().at(i).Et() << std::endl;
         }
 
 
@@ -524,12 +368,12 @@ int main(int argc, char *argv[])
                 outFile << caloJet->GetBinContent(iEta, iPhi) << sep;
             }
         }
-        outFile << endl;
+        outFile << std::endl;
 
-        //cout << "iEvent == " << iEvent << endl;
+        //std::cout << "iEvent == " << iEvent << std::endl;
         /// Save nice plots
         if (iEvent == 18) {
-            cout << "Printing event" << endl;
+            std::cout << "Printing event" << std::endl;
             saveCalorimeterImage(caloJet, "caloJet.png", 1E-4, 1);
             saveCalorimeterImage(calorimeter, "calorimeter.png");
             zeroCalorimeterAroundJet(calorimeter, jetEtaBin, jetPhiBin, RinTowers, nEtaBins, nPhiBins);

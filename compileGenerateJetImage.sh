@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Remove the old executable
+if [ -e generateJetImage ];
+then 
+  echo rm -f generateJetImage
+  rm -f generateJetImage
+fi
+
 # Check if PYTHIA8DIR is set
 if [ -z ${PYTHIA8DIR+x} ];
 then
@@ -33,5 +40,6 @@ echo "Compiling..."
 g++ generateJetImage.cc ${PYTHIA8DIR}/lib/libpythia8.a -I${PYTHIA8DIR}/include \
 `root-config --cflags` `root-config --libs` \
 `fastjet-config --cxxflags` `fastjet-config --libs` \
+-I. \
 -lz -o generateJetImage
 echo "Done"
