@@ -19,9 +19,13 @@
 #include "Pythia8Plugins/FastJet3.h"
 #include "fastjet/tools/Filter.hh"
 
+#include "TROOT.h"
+#include "TSystem.h"
 #include "TFile.h"
 #include "TH1F.h"
 #include "TH2D.h"
+#include "TChain.h"
+#include "TClonesArray.h"
 #include "TCanvas.h"
 #include "TStyle.h"
 #include "TMath.h"
@@ -29,7 +33,13 @@
 #include "TVector3.h"
 #include "TString.h"
 
-
+// Delphes stuff
+#include "classes/DelphesClasses.h"
+#include "external/ExRootAnalysis/ExRootTreeReader.h"
+#include "external/ExRootAnalysis/ExRootTreeWriter.h"
+#include "external/ExRootAnalysis/ExRootTreeBranch.h"
+#include "external/ExRootAnalysis/ExRootResult.h"
+#include "external/ExRootAnalysis/ExRootUtilities.h"
 
 #include "CalorimeterFunctions.h"
 #include "CalorimeterFillers.h"
@@ -123,10 +133,10 @@ int main(int argc, char *argv[])
     double sqrtsInGeV = 13000.0;
     double meanPU = 0.0;
 
-    double _minJetMass = 65;
-    double _maxJetMass = 95;
-    double _minJetPt = 200;
-    double _maxJetPt = 250;
+    double _minJetMass = 0;
+    double _maxJetMass = 9999;
+    double _minJetPt = 0;
+    double _maxJetPt = 9999;
 
 
     if (options[OUTFNAME]) outFileName = options[OUTFNAME].arg;
@@ -140,65 +150,12 @@ int main(int argc, char *argv[])
     if (options[PROCESS]) processType = atoi(options[PROCESS].arg);
 
     // Select jet finding parameters.
-    int    power   = 0;     // -1 = anti-kT; 0 = C/A; 1 = kT.
-    double R       = 1.2;    // Jet size.
+    int    power   = -1;     // -1 = anti-kT; 0 = C/A; 1 = kT.
+    double R       = 0.8;    // Jet size.
     double pTMin   = 30.0;    // Min jet pT.
     double etaMax  = 5.0;    // Pseudorapidity range of detector.
     int    select  = 2;      // Which particles are included?
     int    massSet = 2;      // Which mass are they assumed to have?
-
-    // Generator. Shorthand for event.
-    Pythia pythia("../share/Pythia8/xmldoc", false);
-    Pythia pythiaPU("../share/Pythia8/xmldoc", false);
-
-    Event &event = pythia.event;
-    Event &process = pythia.process;
-    Event &eventPU = pythiaPU.event;
-
-    /// Random infrastrucure - zero is seeds based on time
-    TRandom3 rng(0);
-    pythia.readString("Random:setSeed = on");
-    pythia.readString("Random:seed = 0");
-
-    // Process selection.
-    if (processType == 0) {
-        pythia.readString("HardQCD:all = on");
-    }
-    if (processType == 1) {
-        pythia.readString("WeakDoubleBoson:ffbar2ZW = on");
-        pythia.readString("23:onMode = off");
-        pythia.readString("23:onIfAny = 12 14 16");
-        pythia.readString("24:onMode = off");
-        pythia.readString("24:onIfAny = 1 2 3 4 5");
-    }
-    pythia.readString((TString("PhaseSpace:pTHatMin = ") + TString::Format("%g", _minJetPt - 50)).Data());
-    pythia.readString((TString("PhaseSpace:pTHatMax = ") + TString::Format("%g", _maxJetPt + 50)).Data());
-
-    pythiaPU.readString("SoftQCD:nonDiffractive = on");
-
-    // No event record printout.
-    pythia.readString("Next:numberShowInfo = 0");
-    pythia.readString("Next:numberShowProcess = 0");
-    pythia.readString("Next:numberShowEvent = 0");
-    pythiaPU.readString("Next:numberShowInfo = 0");
-    pythiaPU.readString("Next:numberShowProcess = 0");
-    pythiaPU.readString("Next:numberShowEvent = 0");
-
-    // Very very quiet.
-    pythia.readString("Init:showProcesses = off");
-    pythia.readString("Init:showMultipartonInteractions = off");
-    pythiaPU.readString("Init:showProcesses = off");
-    pythiaPU.readString("Init:showMultipartonInteractions = off");
-    std::ofstream *nullStream = 0;
-    fastjet::ClusterSequence::set_fastjet_banner_stream(nullStream);
-
-    // LHC initialization.
-    string LHCinit = string("Beams:eCM = ") + std::to_string(sqrtsInGeV);
-    pythia.readString(LHCinit.c_str());
-    pythiaPU.readString(LHCinit.c_str());
-
-    pythia.init();
-    pythiaPU.init();
 
     // Set up FastJet jet finder.
     //   one can use either explicitly use antikt, cambridge, etc., or
@@ -215,18 +172,21 @@ int main(int argc, char *argv[])
     // Histograms.
     TH1F *nJets  = new TH1F("nJets", "number of jets", 15, -0.5, 14.5);
     TH1F *nParts = new TH1F("nParts", "number of particles", 200, -0.5, 199.5);
-    int nEtaBins = 50;
-    double maxCaloEta = 2.5;
-    double minCaloEta = -2.5;
-    int nPhiBins = 63;
+    int nEtaBins = 34;
+    double maxCaloEta = 1.479;
+    double minCaloEta = -1.479;
+    int nPhiBins = 72;
     TH2D *calorimeter = new TH2D("calorimeter", "Calorimeter representation",
                                  nEtaBins, minCaloEta, maxCaloEta,
-                                 nPhiBins, -3.14159, 3.14159);
+                                 nPhiBins, -3.141593, 3.141593);
+    double etaStep = calorimeter->GetXaxis()->GetBinWidth(1);
+    double phiStep = calorimeter->GetYaxis()->GetBinWidth(1);
     int RinTowers = TMath::Nint(R / ((maxCaloEta - minCaloEta) / nEtaBins));
-    //std::cout << "R in towers = " << RinTowers << std::endl;
+    if(RinTowers%2 == 0) RinTowers = (RinTowers - 1);
+//     std::cout << "R in towers = " << RinTowers << std::endl;
     TH2D *caloJet = new TH2D("caloJet", "Calorimeter jet representation",
-                             2 * RinTowers + 1, -0.05 - R, R + 0.05,
-                             2 * RinTowers + 1, -0.05 - R, R + 0.05);
+                             2 * RinTowers + 1, -etaStep/2 - R, R + etaStep/2,
+                             2 * RinTowers + 1, -phiStep/2 - R, R + phiStep/2);
 
     // Files
     std::ofstream outFile;
@@ -234,30 +194,63 @@ int main(int argc, char *argv[])
     outFile.precision(6);
     outFile << std::scientific;
 
+    gSystem->Load("libDelphes");
+    TChain chain("Delphes");
+    chain.Add("~/Desktop/tag_1_delphes_events341.root");
+
+    // Create object of class ExRootTreeReader
+    ExRootTreeReader *treeReader = new ExRootTreeReader(&chain);
+    
+    // Get pointers to branches used in this analysis
+    TClonesArray *branchTower = treeReader->UseBranch("Tower");
+
+    /*TFile* inputFile = TFile::Open("~/Desktop/tag_1_delphes_events341.root");
+    TTree* tree = (TTree*) inputFile->Get("Delphes");
+    TTree          *fChain;
+    Int_t           fCurrent; //!current Tree number in a TChain
+    const static Int_t kMaxEvent = 9999;
+    const static Int_t kMaxTower = 50000;
+    Int_t           Tower_;
+    Float_t         Tower_Eta[kMaxTower];
+    Float_t         Tower_Phi[kMaxTower];
+    Float_t         Tower_Eem[kMaxTower];
+    Float_t         Tower_Ehad[kMaxTower];
+    Float_t         Tower_Edges[kMaxTower][4];
+    Int_t           Tower_size;
+    TBranch        *b_Tower_;   //!
+    TBranch        *b_Tower_Eta;   //!
+    TBranch        *b_Tower_Phi;   //!
+    TBranch        *b_Tower_Eem;   //!
+    TBranch        *b_Tower_Ehad;   //!
+    TBranch        *b_Tower_Edges;   //!
+    TBranch        *b_Tower_size;   //!
+    fChain = tree;
+    fCurrent = -1;
+    fChain->SetMakeClass(1);
+    fChain->SetBranchAddress("Tower", &Tower_, &b_Tower_);
+    fChain->SetBranchAddress("Tower.Eta", Tower_Eta, &b_Tower_Eta);
+    fChain->SetBranchAddress("Tower.Phi", Tower_Phi, &b_Tower_Phi);
+    fChain->SetBranchAddress("Tower.Eem", Tower_Eem, &b_Tower_Eem);
+    fChain->SetBranchAddress("Tower.Ehad", Tower_Ehad, &b_Tower_Ehad);
+    fChain->SetBranchAddress("Tower.Edges[4]", Tower_Edges, &b_Tower_Edges);
+    fChain->SetBranchAddress("Tower_size", &Tower_size, &b_Tower_size);
+    */
+    
     /// Factoring out "fill calorimeter with event" function.
 
     // Begin event loop. Generate event. Skip if error.
-    for (int iEvent = 0; iEvent < nEvent; ++iEvent) {
+    Long64_t nentries = chain.GetEntriesFast();
+    nentries = 12;
+    for (Long64_t jentry=8; jentry<nentries;jentry++) {
 
+        treeReader->ReadEntry(jentry);        
         calorimeter->Reset();
         caloJet->Reset();
 
-        /// Generate main event
-        if (!pythia.next()) continue;
-        if (iEvent == 1) process.list();
-
         /// Fill calorimeter with it
-        fillCalorimeterWithEvent(calorimeter, event, select, etaMax);
-
-        /// Generate PU events
-        if (meanPU >= 1) nEventPU = rng.Poisson(meanPU);
-        else nEventPU = 0;
-        //std::cout << "Adding " << nEventPU << " events" << std::endl;
-
-        for (int iEventPU = 0; iEventPU != nEventPU; ++iEventPU) {
-            if (!pythiaPU.next()) continue;
-            fillCalorimeterWithEvent(calorimeter, eventPU, select, etaMax);
-        }
+        fillCalorimeterWithDelphesCalorimeter(calorimeter, 
+                                                branchTower,
+                                                1.479);
 
         /// Transform calo towers back into particles
         std::vector <fastjet::PseudoJet> fjInputs;
@@ -272,16 +265,6 @@ int main(int argc, char *argv[])
                 //std::cout << etaCenter << " " << phiCenter << std::endl;
             }
         }
-        //std::cout << fjInputs.size() << std::endl;
-
-        /*
-        fjInputs.clear();
-        fastjet::PseudoJet jjj;
-        jjj.reset_PtYPhiM(400,0.3,3.1+0.3-2*M_PI,0);
-        fjInputs.push_back(jjj);
-        jjj.reset_PtYPhiM(200,-0.3,3.1-0.3,0);
-        fjInputs.push_back(jjj);
-        */
 
         /// Run Fastjet algorithm and sort jets in pT order.
         vector <fastjet::PseudoJet> inclusiveJets, sortedJets;
@@ -295,10 +278,14 @@ int main(int argc, char *argv[])
 
         /// Find leading jet
         double jetPt = sortedJets[0].perp();
+        double jetEta = sortedJets[0].eta();
+        double jetPhi = sortedJets[0].phi_std();
         if (jetPt < _minJetPt) continue;
         if (jetPt > _maxJetPt) continue;
 
-        //std::cout << "jet mass = " << jetMass << std::endl;
+        //std::cout << "jet pt = " << jetPt << std::endl;
+        //std::cout << "jet eta = " << jetEta << std::endl;
+        //std::cout << "jet phi = " << jetPhi << std::endl;
         //std::cout << "Found pretrim constituents:" << sortedJets[0].constituents().size() << std::endl;
 
         /// 1) Do the noise reduction with TRIMMING
@@ -372,7 +359,7 @@ int main(int argc, char *argv[])
 
         //std::cout << "iEvent == " << iEvent << std::endl;
         /// Save nice plots
-        if (iEvent == 18) {
+        if (jentry == 11) {
             std::cout << "Printing event" << std::endl;
             saveCalorimeterImage(caloJet, "caloJet.png", 1E-4, 1);
             saveCalorimeterImage(calorimeter, "calorimeter.png");
@@ -381,6 +368,7 @@ int main(int argc, char *argv[])
             fillCalorimeterWithJet(calorimeter, trimmedJet);
             saveCalorimeterImage(calorimeter, "calorimeter_trimmed.png");
         }
+        
     } //Close event loop
 
 
@@ -391,6 +379,8 @@ int main(int argc, char *argv[])
     TFile *f = TFile::Open("file.root", "RECREATE");
     nJets->Write();
     nParts->Write();
+    calorimeter->Write();
+    caloJet->Write();
     f->Close();
 
     // Done.

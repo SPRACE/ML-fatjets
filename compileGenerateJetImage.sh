@@ -40,6 +40,7 @@ echo "Compiling..."
 g++ generateJetImage.cc ${PYTHIA8DIR}/lib/libpythia8.a -I${PYTHIA8DIR}/include \
 `root-config --cflags` `root-config --libs` \
 `fastjet-config --cxxflags` `fastjet-config --libs` \
--I. \
+-I. -I/Users/trtomei/work/HEP/Software/Delphes/Delphes-3.4.1 \
+-L/Users/trtomei/work/HEP/Software/Delphes/Delphes-3.4.1 -lDelphesNoFastJet \
 -lz -o generateJetImage
 echo "Done"

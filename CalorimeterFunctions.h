@@ -85,7 +85,7 @@ std::vector<TVector3> convertJetToParticles(const fastjet::PseudoJet &jet)
                              jet.constituents().at(i).phi_std(),
                              jet.constituents().at(i).Et()
                          ));
-    }
+	}
     return result;
 }
 
